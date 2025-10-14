@@ -115,14 +115,14 @@ class UserTransactionsDBService {
     final List<Map<String, dynamic>> borrowedResult = await db.rawQuery(
       '''SELECT SUM($amountField) as totalBorrowed
        FROM $tableName
-       WHERE $expenseDateField BETWEEN ? AND ? AND $isBorrowedOrLendedField = 1 AND $payerNameField = ?''',
+       WHERE ($expenseDateField BETWEEN ? AND ?) AND $isBorrowedOrLendedField = 1 AND $payerNameField != ?''',
       [startDateString, endDateString, userName],
     );
 
     final List<Map<String, dynamic>> lentResult = await db.rawQuery(
       '''SELECT SUM($amountField) as totalLent
        FROM $tableName
-       WHERE $expenseDateField BETWEEN ? AND ? AND $isBorrowedOrLendedField = 1 AND $payerNameField != ?''',
+       WHERE( $expenseDateField BETWEEN ? AND ?) AND $isBorrowedOrLendedField = 1 AND $payerNameField = ?''',
       [startDateString, endDateString, userName],
     );
 
@@ -151,7 +151,7 @@ class UserTransactionsDBService {
     final List<Map<String, dynamic>> result = await db.rawQuery(
       '''SELECT $payerNameField, SUM($amountField) as totalSpent
        FROM $tableName
-       WHERE $expenseDateField BETWEEN ? AND ?
+       WHERE ($expenseDateField BETWEEN ? AND ?)
        GROUP BY $payerNameField''',
       [startDateString, endDateString],
     );
@@ -176,7 +176,7 @@ class UserTransactionsDBService {
     final List<Map<String, dynamic>> result = await db.rawQuery(
       '''SELECT $expenseGroupIdField, SUM($amountField) as totalSpent
        FROM $tableName
-       WHERE $expenseDateField BETWEEN ? AND ?
+       WHERE ($expenseDateField BETWEEN ? AND ?)
        GROUP BY $expenseGroupIdField''',
       [startDateString, endDateString],
     );

@@ -3,7 +3,7 @@ import 'package:expense_manager/utils/ui_callbacks.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-void showCategoryDetailsBottomSheet(
+void showDetailsBottomSheet(
   BuildContext context,
   Map<String, dynamic> selectedCategory,
   List<Map<String, dynamic>> recentTransactions,
@@ -110,7 +110,7 @@ void showCategoryDetailsBottomSheet(
                     : ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: recentTransactions.length,
-                        separatorBuilder: (_, __) => SizedBox(width: 12),
+                        separatorBuilder: (_, _) => SizedBox(width: 12),
                         itemBuilder: (context, index) {
                           final tx = recentTransactions[index];
                           return Container(
@@ -121,7 +121,7 @@ void showCategoryDetailsBottomSheet(
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.grey.withOpacity(0.1),
+                                  color: Colors.grey.withValues(alpha: 0.1),
                                   blurRadius: 8,
                                   spreadRadius: 2,
                                   offset: Offset(0, 3),

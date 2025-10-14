@@ -1,6 +1,5 @@
 import 'package:expense_manager/utils/constants.dart';
 import 'package:expense_manager/utils/ui_callbacks.dart';
-import 'package:expense_manager/screens/transactions_screen/widgets/expense_entry_popup.dart';
 import 'package:flutter/material.dart';
 import 'package:expense_manager/models/database_models/user_transactions_db_model.dart';
 import 'package:expense_manager/database/user_transactions_database.dart'; // Assuming this contains your DB delete method
@@ -9,12 +8,14 @@ class TransactionListTile extends StatelessWidget {
   final UserTransactionModel transaction;
   final VoidCallback onRefresh;
   final String userName;
+  final VoidCallback onEditClicked;
 
   const TransactionListTile({
     super.key,
     required this.transaction,
     required this.userName,
     required this.onRefresh,
+    required this.onEditClicked,
   });
 
   // Function to show action sheet for edit or delete
@@ -66,18 +67,7 @@ class TransactionListTile extends StatelessWidget {
   // Handle the edit operation (this will open the existing popup)
   void _editTransaction(BuildContext context) {
     // Open the existing ExpenseEntryPopup with the transaction data pre-filled
-    showDialog(
-      context: context,
-      builder: (context) {
-        return ExpenseEntryPopup(
-          userName: userName,
-          callBack: (val) {
-            onRefresh();
-          },
-          transactionToEdit: transaction,
-        );
-      },
-    );
+    onEditClicked();
   }
 
   @override

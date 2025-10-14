@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'package:expense_manager/database/user_transactions_database.dart';
 import 'package:expense_manager/models/database_models/user_transactions_db_model.dart';
 import 'package:expense_manager/utils/constants.dart';
@@ -61,9 +62,17 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
     toController = TextEditingController(
       text: widget.transactionToEdit?.receiverName ?? widget.userName,
     );
-    expenseDateController = TextEditingController(
-      text: widget.transactionToEdit?.expenseDate ?? getCurrentUIDateTime(),
-    );
+    if ((widget.transactionToEdit?.expenseDate ?? '') == '') {
+      expenseDateController = TextEditingController(
+        text: getCurrentUIDateTime(),
+      );
+    } else {
+      expenseDateController = TextEditingController(
+        text: DateFormat(
+          uiDateTimeFormat,
+        ).format(DateTime.parse(widget.transactionToEdit!.expenseDate!)),
+      );
+    }
 
     // Set the expense group if editing
     selectedExpenseGroup = ListOfExpenses.getExpenseName(
@@ -191,7 +200,7 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
       }
       widget.callBack(true);
     } catch (e) {
-      print(e);
+      log(e.toString());
       showErrorDialog("Failed to save transaction: $e");
     }
   }

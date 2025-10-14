@@ -27,6 +27,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   int totalTransactions = 0;
   int borrowLendTransactions = 0;
 
+  int? selectedIndex;
+
   @override
   initState() {
     super.initState();
@@ -81,6 +83,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
     setState(() {
       filteredTransactions = transactions;
+      selectedIndex = null;
       isLoading = false;
     });
   }
@@ -154,6 +157,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                             filteredTransactions[index],
                                         userName: userName,
                                         onRefresh: _loadTransactions,
+                                        onEditClicked: () {
+                                          selectedIndex = index;
+                                          openAddExpensePopup();
+                                        },
                                       );
                                     },
                                   ),
@@ -169,6 +176,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           _loadTransactions();
                           setState(() => isExpensePopupOpen = false);
                         },
+                        transactionToEdit: selectedIndex == null
+                            ? null
+                            : filteredTransactions[selectedIndex!],
                       ),
                     ),
                   ],
