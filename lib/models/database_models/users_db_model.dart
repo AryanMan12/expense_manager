@@ -71,7 +71,7 @@ class UserModel {
     moneyLend: json[moneyLendField],
     createdDate: json[createdDateField],
     modifiedDate: json[modifiedDateField],
-    isActive: json[isActiveField],
+    isActive: json[isActiveField] == 1,
   );
 
   // Convert Model to JSON
@@ -87,6 +87,6 @@ class UserModel {
     moneyLendField: moneyLend,
     createdDateField: createdDate,
     modifiedDateField: modifiedDate,
-    isActiveField: isActive,
+    isActiveField: isActive == true ? 1 : 0,
   };
 }

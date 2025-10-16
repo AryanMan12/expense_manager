@@ -1,3 +1,6 @@
+import 'package:expense_manager/database/users_database.dart';
+import 'package:expense_manager/models/database_models/users_db_model.dart';
+import 'package:expense_manager/widgets/custom_buttons/cusstom_button.dart';
 import 'package:expense_manager/widgets/custom_inputs/custom_text_box.dart';
 import 'package:expense_manager/widgets/navigation_bars/custom_screen_header.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +20,8 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
   late TextEditingController borrowedController;
   late TextEditingController lendedController;
 
+  String lastEditedOn = "";
+
   @override
   void initState() {
     super.initState();
@@ -26,6 +31,117 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
     investmentController = TextEditingController();
     borrowedController = TextEditingController();
     lendedController = TextEditingController();
+
+    _loadUserDetails();
+  }
+
+  Future<void> _loadUserDetails() async {
+    final userService = UserDBService();
+    final users = await userService.getAll();
+
+    if (users.isNotEmpty) {
+      final user = users.first;
+
+      setState(() {
+        usernameController.text = user.name ?? '';
+        currentBalanceController.text = user.total?.toStringAsFixed(2) ?? '';
+        savingsController.text = user.savings?.toStringAsFixed(2) ?? '';
+        investmentController.text = user.invested?.toStringAsFixed(2) ?? '';
+        borrowedController.text = user.moneyBorrowed?.toStringAsFixed(2) ?? '';
+        lendedController.text = user.moneyLend?.toStringAsFixed(2) ?? '';
+        lastEditedOn = user.modifiedDate ?? DateTime.now().toString();
+      });
+    } else {
+      setState(() {
+        lastEditedOn = DateTime.now().toString();
+      });
+    }
+  }
+
+  bool validate() {
+    // Check if username is not empty
+    if (usernameController.text.trim().isEmpty) {
+      _showErrorMessage("Please enter a valid username.");
+      return false;
+    }
+
+    // Check if all other fields are numeric and non-empty
+    if (_isEmptyOrInvalid(currentBalanceController.text)) {
+      _showErrorMessage("Please enter a valid current balance.");
+      return false;
+    }
+
+    if (_isEmptyOrInvalid(savingsController.text)) {
+      _showErrorMessage("Please enter a valid savings amount.");
+      return false;
+    }
+
+    if (_isEmptyOrInvalid(investmentController.text)) {
+      _showErrorMessage("Please enter a valid investment amount.");
+      return false;
+    }
+
+    if (_isEmptyOrInvalid(borrowedController.text)) {
+      _showErrorMessage("Please enter a valid borrowed amount.");
+      return false;
+    }
+
+    if (_isEmptyOrInvalid(lendedController.text)) {
+      _showErrorMessage("Please enter a valid lended amount.");
+      return false;
+    }
+
+    return true;
+  }
+
+  bool _isEmptyOrInvalid(String text) {
+    return text.trim().isEmpty || double.tryParse(text.trim()) == null;
+  }
+
+  void _showErrorMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> saveUserDetails() async {
+    if (!validate()) return;
+
+    final userService = UserDBService();
+    final now = DateTime.now().toString();
+
+    // You can either update the first user, or create a new one
+    final existingUsers = await userService.getAll();
+    final isUpdating = existingUsers.isNotEmpty;
+
+    final user = UserModel(
+      id: isUpdating ? existingUsers.first.id : null,
+      name: usernameController.text.trim(),
+      total: double.tryParse(currentBalanceController.text.trim()) ?? 0.0,
+      savings: double.tryParse(savingsController.text.trim()) ?? 0.0,
+      invested: double.tryParse(investmentController.text.trim()) ?? 0.0,
+      moneyBorrowed: double.tryParse(borrowedController.text.trim()) ?? 0.0,
+      moneyLend: double.tryParse(lendedController.text.trim()) ?? 0.0,
+      dailyLimit: 0.0,
+      moneyLeftFromDaily: 0.0,
+      createdDate: isUpdating ? existingUsers.first.createdDate : now,
+      modifiedDate: now,
+      isActive: true,
+    );
+
+    if (isUpdating) {
+      await userService.update(user);
+    } else {
+      await userService.insert(user);
+    }
+
+    setState(() => lastEditedOn = now);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Account details saved successfully")),
+      );
+    }
   }
 
   @override
@@ -116,6 +232,18 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
               ),
             ),
           ),
+          Align(
+            alignment: AlignmentGeometry.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: CustomButton(
+                label: "Save",
+                onPressed: saveUserDetails,
+                color: Colors.deepPurpleAccent.shade400,
+              ),
+            ),
+          ),
+
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
             child: Column(
@@ -128,7 +256,7 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
                     fontSize: 12,
                   ),
                 ),
-                Text(DateTime.now().toString(), style: TextStyle(fontSize: 10)),
+                Text(lastEditedOn, style: TextStyle(fontSize: 10)),
               ],
             ),
           ),
@@ -137,11 +265,18 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Note: ", style: TextStyle(fontSize: 10)),
+                Text(
+                  "Note: ",
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.deepPurpleAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 Expanded(
                   child: Text(
                     "Expenses added before last edited on date will not effect the fields mentioned here.. only new entries will change the entries here",
-                    style: TextStyle(fontSize: 10, color: Colors.grey),
+                    style: TextStyle(fontSize: 10),
                     maxLines: 2,
                     softWrap: true,
                   ),

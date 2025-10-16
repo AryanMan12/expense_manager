@@ -1,4 +1,5 @@
 import 'package:expense_manager/database/user_transactions_database.dart';
+import 'package:expense_manager/database/users_database.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -19,13 +20,30 @@ class AppDatabase {
 
   Future _createDB(Database db, int version) async {
     final userTransactionsDB = UserTransactionsDBService();
+    final userDB = UserDBService();
+    print("Creating tables...");
     await db.execute(userTransactionsDB.createQuery);
+    await db.execute(userDB.createQuery);
+    print("Tables created successfully.");
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    print("Upgrading database from $oldVersion to $newVersion");
+    if (oldVersion < 4) {
+      final userDB = UserDBService();
+      await db.execute(userDB.createQuery);
+    }
   }
 
   Future<Database> _initializedDB(String fileName) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, fileName);
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    return await openDatabase(
+      path,
+      version: 4,
+      onCreate: _createDB,
+      onUpgrade: _onUpgrade,
+    );
   }
 
   Future<void> close() async {
@@ -33,3 +51,7 @@ class AppDatabase {
     return db.close();
   }
 }
+
+// DB version and changes
+// 1: User Transaction Table Created
+// 4: Users Table Created
