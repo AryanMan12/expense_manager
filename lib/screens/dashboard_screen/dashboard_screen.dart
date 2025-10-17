@@ -1,9 +1,11 @@
 import 'package:expense_manager/models/database_models/user_transactions_db_model.dart';
+import 'package:expense_manager/providers/user_details_provider.dart';
 import 'package:expense_manager/screens/dashboard_screen/widgets/dashboard_charts_widget.dart';
 import 'package:expense_manager/screens/dashboard_screen/widgets/dashboard_helper_summary_widgets.dart';
 import 'package:expense_manager/utils/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:expense_manager/database/user_transactions_database.dart';
+import 'package:provider/provider.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -26,11 +28,15 @@ class _DashboardBodyState extends State<DashboardScreen> {
   List<Map<String, dynamic>> categoryBreakdown = [];
   List<Map<String, dynamic>> timeseries = [];
 
-  String userName = "Aryan";
+  late UserDetailsProvider _userDetailsProvider;
 
   @override
   void initState() {
     super.initState();
+    _userDetailsProvider = Provider.of<UserDetailsProvider>(
+      context,
+      listen: false,
+    );
     initialDataFromDB();
   }
 
@@ -47,7 +53,7 @@ class _DashboardBodyState extends State<DashboardScreen> {
         (await db.getTotalBorrowedLentAmounts(
           currentRange.start,
           currentRange.end,
-          userName,
+          _userDetailsProvider.user!.name!,
         ))['totalBorrowed'] ??
         0;
 
@@ -55,7 +61,7 @@ class _DashboardBodyState extends State<DashboardScreen> {
         (await db.getTotalBorrowedLentAmounts(
           currentRange.start,
           currentRange.end,
-          userName,
+          _userDetailsProvider.user!.name!,
         ))['totalLent'] ??
         0;
 

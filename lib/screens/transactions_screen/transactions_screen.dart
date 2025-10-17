@@ -1,6 +1,8 @@
 import 'package:expense_manager/database/user_transactions_database.dart';
 import 'package:expense_manager/models/database_models/user_transactions_db_model.dart';
 import 'package:expense_manager/providers/app_data_provider.dart';
+import 'package:expense_manager/providers/user_details_provider.dart';
+import 'package:expense_manager/screens/main_screen/widgets/initial_name_popup.dart';
 import 'package:expense_manager/screens/transactions_screen/widgets/overview_widget.dart';
 import 'package:expense_manager/screens/transactions_screen/widgets/single_transaction_list_tile.dart';
 import 'package:expense_manager/screens/transactions_screen/widgets/expense_entry_popup.dart';
@@ -17,8 +19,6 @@ class TransactionsScreen extends StatefulWidget {
 class _TransactionsScreenState extends State<TransactionsScreen> {
   bool isLoading = false;
   bool isExpensePopupOpen = false;
-
-  String userName = "Aryan";
   String selectedPeriod = 'Month';
 
   List<UserTransactionModel> filteredTransactions = [];
@@ -29,10 +29,25 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   int? selectedIndex;
 
+  late UserDetailsProvider _userDetailsProvider;
+
   @override
   initState() {
     super.initState();
+    _userDetailsProvider = Provider.of<UserDetailsProvider>(
+      context,
+      listen: false,
+    );
+    _userDetailsProvider.getUserDetails();
+    _loadUserDetails();
     _loadTransactions();
+  }
+
+  Future<void> _loadUserDetails() async {
+    if (_userDetailsProvider.user?.name == null) {
+      await showNameInputDialog(context);
+      if (mounted) setState(() {});
+    }
   }
 
   Future<void> _loadTransactions() async {
@@ -114,78 +129,84 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return Consumer<AppDataProvider>(
       builder: (context, appDataProvider, child) {
         return Scaffold(
-          body: Stack(
-            children: [
-              RefreshIndicator(
-                onRefresh: _loadTransactions,
-                child: Stack(
+          body: _userDetailsProvider.user?.name == null
+              ? Center(child: Text("Waiting For Useranme"))
+              : Stack(
                   children: [
-                    Column(
-                      children: [
-                        // Overview Card
-                        OverviewCard(
-                          totalAmount: totalAmount,
-                          totalTransactions: totalTransactions,
-                          borrowLendTransactions: borrowLendTransactions,
-                        ),
-                        const SizedBox(height: 20),
-                        // Time Period Selector
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _buildPeriodButton("Day"),
-                            _buildPeriodButton("Week"),
-                            _buildPeriodButton("Month"),
-                            _buildPeriodButton("Year"),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        // Loading Spinner
-                        if (isLoading)
-                          Center(child: CircularProgressIndicator())
-                        else
-                          // List of Transactions
-                          filteredTransactions.isEmpty
-                              ? Center(child: Text("No Transactions Yet"))
-                              : Expanded(
-                                  child: ListView.builder(
-                                    itemCount: filteredTransactions.length,
-                                    physics: AlwaysScrollableScrollPhysics(),
-                                    itemBuilder: (context, index) {
-                                      return TransactionListTile(
-                                        transaction:
-                                            filteredTransactions[index],
-                                        userName: userName,
-                                        onRefresh: _loadTransactions,
-                                        onEditClicked: () {
-                                          selectedIndex = index;
-                                          openAddExpensePopup();
-                                        },
-                                      );
-                                    },
-                                  ),
-                                ),
-                      ],
-                    ),
-                    Visibility(
-                      visible: isExpensePopupOpen,
-                      child: ExpenseEntryPopup(
-                        userName: userName,
-                        callBack: (val) {
-                          if (!val) return;
-                          _loadTransactions();
-                          setState(() => isExpensePopupOpen = false);
-                        },
-                        transactionToEdit: selectedIndex == null
-                            ? null
-                            : filteredTransactions[selectedIndex!],
+                    RefreshIndicator(
+                      onRefresh: _loadTransactions,
+                      child: Stack(
+                        children: [
+                          Column(
+                            children: [
+                              // Overview Card
+                              OverviewCard(
+                                totalAmount: totalAmount,
+                                totalTransactions: totalTransactions,
+                                borrowLendTransactions: borrowLendTransactions,
+                              ),
+                              const SizedBox(height: 20),
+                              // Time Period Selector
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  _buildPeriodButton("Day"),
+                                  _buildPeriodButton("Week"),
+                                  _buildPeriodButton("Month"),
+                                  _buildPeriodButton("Year"),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              // Loading Spinner
+                              if (isLoading)
+                                Center(child: CircularProgressIndicator())
+                              else
+                                // List of Transactions
+                                filteredTransactions.isEmpty
+                                    ? Center(child: Text("No Transactions Yet"))
+                                    : Expanded(
+                                        child: ListView.builder(
+                                          itemCount:
+                                              filteredTransactions.length,
+                                          physics:
+                                              AlwaysScrollableScrollPhysics(),
+                                          itemBuilder: (context, index) {
+                                            return TransactionListTile(
+                                              transaction:
+                                                  filteredTransactions[index],
+                                              userName: _userDetailsProvider
+                                                  .user!
+                                                  .name!,
+                                              onRefresh: _loadTransactions,
+                                              onEditClicked: () {
+                                                selectedIndex = index;
+                                                openAddExpensePopup();
+                                              },
+                                            );
+                                          },
+                                        ),
+                                      ),
+                            ],
+                          ),
+                          Visibility(
+                            visible: isExpensePopupOpen,
+                            child: ExpenseEntryPopup(
+                              userName: _userDetailsProvider.user!.name!,
+                              callBack: (val) {
+                                if (!val) return;
+                                _loadTransactions();
+                                setState(() => isExpensePopupOpen = false);
+                              },
+                              transactionToEdit: selectedIndex == null
+                                  ? null
+                                  : filteredTransactions[selectedIndex!],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
           floatingActionButton: FloatingActionButton(
             onPressed: openAddExpensePopup,
             tooltip: 'Add Expense',

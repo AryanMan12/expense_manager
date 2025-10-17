@@ -1,9 +1,10 @@
-import 'package:expense_manager/database/users_database.dart';
 import 'package:expense_manager/models/database_models/users_db_model.dart';
+import 'package:expense_manager/providers/user_details_provider.dart';
 import 'package:expense_manager/widgets/custom_buttons/cusstom_button.dart';
 import 'package:expense_manager/widgets/custom_inputs/custom_text_box.dart';
 import 'package:expense_manager/widgets/navigation_bars/custom_screen_header.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class AccountDetailsScreen extends StatefulWidget {
   const AccountDetailsScreen({super.key});
@@ -20,6 +21,8 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
   late TextEditingController borrowedController;
   late TextEditingController lendedController;
 
+  late UserDetailsProvider _userDetailsProvider;
+
   String lastEditedOn = "";
 
   @override
@@ -32,16 +35,18 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
     borrowedController = TextEditingController();
     lendedController = TextEditingController();
 
+    _userDetailsProvider = Provider.of<UserDetailsProvider>(
+      context,
+      listen: false,
+    );
+
     _loadUserDetails();
   }
 
   Future<void> _loadUserDetails() async {
-    final userService = UserDBService();
-    final users = await userService.getAll();
+    final user = _userDetailsProvider.user;
 
-    if (users.isNotEmpty) {
-      final user = users.first;
-
+    if (user != null) {
       setState(() {
         usernameController.text = user.name ?? '';
         currentBalanceController.text = user.total?.toStringAsFixed(2) ?? '';
@@ -107,15 +112,9 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
   Future<void> saveUserDetails() async {
     if (!validate()) return;
 
-    final userService = UserDBService();
     final now = DateTime.now().toString();
-
-    // You can either update the first user, or create a new one
-    final existingUsers = await userService.getAll();
-    final isUpdating = existingUsers.isNotEmpty;
-
     final user = UserModel(
-      id: isUpdating ? existingUsers.first.id : null,
+      id: 1,
       name: usernameController.text.trim(),
       total: double.tryParse(currentBalanceController.text.trim()) ?? 0.0,
       savings: double.tryParse(savingsController.text.trim()) ?? 0.0,
@@ -124,16 +123,12 @@ class _AccountDetailsScreenState extends State<AccountDetailsScreen> {
       moneyLend: double.tryParse(lendedController.text.trim()) ?? 0.0,
       dailyLimit: 0.0,
       moneyLeftFromDaily: 0.0,
-      createdDate: isUpdating ? existingUsers.first.createdDate : now,
+      createdDate: _userDetailsProvider.user!.createdDate ?? now,
       modifiedDate: now,
       isActive: true,
     );
 
-    if (isUpdating) {
-      await userService.update(user);
-    } else {
-      await userService.insert(user);
-    }
+    _userDetailsProvider.updateUserDetails(user);
 
     setState(() => lastEditedOn = now);
 
