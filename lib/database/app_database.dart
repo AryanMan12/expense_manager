@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'package:expense_manager/database/user_transactions_database.dart';
 import 'package:expense_manager/database/users_database.dart';
 import 'package:path/path.dart';
@@ -21,14 +22,14 @@ class AppDatabase {
   Future _createDB(Database db, int version) async {
     final userTransactionsDB = UserTransactionsDBService();
     final userDB = UserDBService();
-    print("Creating tables...");
+    log("Creating tables...");
     await db.execute(userTransactionsDB.createQuery);
     await db.execute(userDB.createQuery);
-    print("Tables created successfully.");
+    log("Tables created successfully.");
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    print("Upgrading database from $oldVersion to $newVersion");
+    log("Upgrading database from $oldVersion to $newVersion");
     if (oldVersion < 4) {
       final userDB = UserDBService();
       await db.execute(userDB.createQuery);

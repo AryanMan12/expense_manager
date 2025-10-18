@@ -2,7 +2,8 @@ import 'package:expense_manager/utils/constants.dart';
 import 'package:expense_manager/utils/ui_callbacks.dart';
 import 'package:flutter/material.dart';
 import 'package:expense_manager/models/user_transactions_db_model.dart';
-import 'package:expense_manager/database/user_transactions_database.dart'; // Assuming this contains your DB delete method
+import 'package:expense_manager/database/user_transactions_database.dart';
+import 'package:intl/intl.dart';
 
 class TransactionListTile extends StatelessWidget {
   final UserTransactionModel transaction;
@@ -18,128 +19,176 @@ class TransactionListTile extends StatelessWidget {
     required this.onEditClicked,
   });
 
-  // Function to show action sheet for edit or delete
-  void _showActionSheet(BuildContext context) async {
+  void _showActionSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Icon(Icons.edit),
-                title: Text("Edit Transaction"),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _editTransaction(context);
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.delete),
-                title: Text("Delete Transaction"),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _deleteTransaction(context);
-                },
-              ),
-            ],
-          ),
-        );
-      },
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.edit),
+              title: Text("Edit Transaction"),
+              onTap: () {
+                Navigator.of(context).pop();
+                onEditClicked();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.delete),
+              title: Text("Delete Transaction"),
+              onTap: () async {
+                Navigator.of(context).pop();
+                final dbService = UserTransactionsDBService();
+                await dbService.delete(transaction.id!);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Transaction deleted successfully')),
+                  );
+                }
+                onRefresh();
+              },
+            ),
+          ],
+        ),
+      ),
     );
-  }
-
-  // Handle the delete operation
-  Future<void> _deleteTransaction(BuildContext context) async {
-    final dbService = UserTransactionsDBService();
-    await dbService.delete(transaction.id!);
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Transaction deleted successfully')),
-      );
-    }
-    onRefresh();
-  }
-
-  // Handle the edit operation (this will open the existing popup)
-  void _editTransaction(BuildContext context) {
-    // Open the existing ExpenseEntryPopup with the transaction data pre-filled
-    onEditClicked();
   }
 
   @override
   Widget build(BuildContext context) {
-    String borrowedStatus = "";
-    final bool toSelf = transaction.payerName == transaction.receiverName;
+    final bool isBorrowed =
+        transaction.isBorrowedOrLended == 1 &&
+        transaction.payerName != userName;
+    final bool isLent =
+        transaction.isBorrowedOrLended == 1 &&
+        transaction.payerName == userName;
 
-    if (!toSelf && transaction.isBorrowedOrLended == 1) {
-      borrowedStatus = transaction.payerName == userName ? "Lend" : "Borrowed";
-    }
+    final bool isIncome =
+        transaction.receiverName == userName &&
+        transaction.payerName != userName &&
+        transaction.isBorrowedOrLended == 2;
+
+    final String groupName = ListOfExpenses.getExpenseName(
+      transaction.expenseGroupId,
+    );
+    final String formattedDate = transaction.expenseDate != null
+        ? DateFormat(
+            'd MMM yyyy',
+          ).format(DateTime.parse(transaction.expenseDate!))
+        : '';
+
+    // Amount color based on transaction type
+    final Color amountColor = isIncome || isBorrowed
+        ? Colors.green[800]!
+        : Colors.red[800]!;
 
     return GestureDetector(
       onLongPress: () => _showActionSheet(context),
       child: Card(
         margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        elevation: 1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 10,
+            horizontal: 12,
+          ),
           leading: CircleAvatar(
-            backgroundColor: Colors.deepPurpleAccent,
-            child: Icon(Icons.currency_rupee, color: Colors.white),
+            backgroundColor: isIncome || isBorrowed
+                ? Colors.green[100]
+                : Colors.red[100],
+            child: Icon(Icons.currency_rupee, color: amountColor),
           ),
           title: Text(
-            toSelf
-                ? "Self"
+            transaction.payerName == transaction.receiverName
+                ? "On Self"
                 : "${transaction.payerName} → ${transaction.receiverName}",
-            style: TextStyle(fontWeight: FontWeight.bold),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
           ),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(transaction.description ?? '-'),
+              if (transaction.description != null &&
+                  transaction.description!.trim().isNotEmpty)
+                Text(
+                  transaction.description!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              const SizedBox(height: 2),
+
               Text(
-                "Group: ${ListOfExpenses.getExpenseName(transaction.expenseGroupId)}",
+                "Group: $groupName",
+                style: TextStyle(fontSize: 12, color: Colors.grey[700]),
               ),
-              Text("Date: ${transaction.expenseDate ?? ''}"),
+              const SizedBox(height: 2),
+
+              // Date Emphasis
+              Row(
+                children: [
+                  Icon(
+                    Icons.calendar_today_rounded,
+                    size: 14,
+                    color: Colors.deepPurple[300],
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    formattedDate,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.deepPurple[300],
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
           trailing: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
                 "₹${transaction.amount?.toStringAsFixed(2) ?? '0.00'}",
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
+                  color: amountColor,
                 ),
               ),
               const SizedBox(height: 4),
-              Visibility(
-                visible: borrowedStatus != "",
-                child: Container(
+              if (isBorrowed || isLent)
+                Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 6,
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: borrowedStatus == "Borrowed"
-                        ? Colors.red[100]
-                        : Colors.green[100],
-                    borderRadius: BorderRadius.circular(5),
+                    color: isBorrowed ? Colors.red[100] : Colors.green[100],
+                    borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Text(
-                    borrowedStatus,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: borrowedStatus == "Borrowed"
-                          ? Colors.red
-                          : Colors.green,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isBorrowed ? Icons.call_received : Icons.call_made,
+                        size: 12,
+                        color: isBorrowed ? Colors.red : Colors.green,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        isBorrowed ? "Borrowed" : "Lent",
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: isBorrowed ? Colors.red : Colors.green,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
             ],
           ),
         ),

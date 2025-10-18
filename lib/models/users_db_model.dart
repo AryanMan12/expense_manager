@@ -89,4 +89,34 @@ class UserModel {
     modifiedDateField: modifiedDate,
     isActiveField: isActive == true ? 1 : 0,
   };
+
+  UserModel copyWith({
+    int? id,
+    String? name,
+    double? total,
+    double? savings,
+    double? invested,
+    double? dailyLimit,
+    double? moneyLeftFromDaily,
+    double? moneyBorrowed,
+    double? moneyLend,
+    String? createdDate,
+    String? modifiedDate,
+    bool? isActive,
+  }) {
+    return UserModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      total: total ?? this.total,
+      savings: savings ?? this.savings,
+      invested: invested ?? this.invested,
+      dailyLimit: dailyLimit ?? this.dailyLimit,
+      moneyLeftFromDaily: moneyLeftFromDaily ?? this.moneyLeftFromDaily,
+      moneyBorrowed: moneyBorrowed ?? this.moneyBorrowed,
+      moneyLend: moneyLend ?? this.moneyLend,
+      createdDate: createdDate ?? this.createdDate,
+      modifiedDate: modifiedDate ?? this.modifiedDate,
+      isActive: isActive ?? this.isActive,
+    );
+  }
 }

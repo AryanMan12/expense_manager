@@ -1,6 +1,8 @@
 import 'dart:developer';
 import 'package:expense_manager/database/user_transactions_database.dart';
 import 'package:expense_manager/models/user_transactions_db_model.dart';
+import 'package:expense_manager/models/users_db_model.dart';
+import 'package:expense_manager/providers/user_details_provider.dart';
 import 'package:expense_manager/utils/constants.dart';
 import 'package:expense_manager/utils/date_utils.dart';
 import 'package:expense_manager/utils/ui_callbacks.dart';
@@ -13,6 +15,7 @@ import 'package:expense_manager/widgets/custom_inputs/custom_text_box.dart';
 import 'package:expense_manager/widgets/navigation_bars/custom_popup_header.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 class ExpenseEntryPopup extends StatefulWidget {
   final BoolCallback callBack;
@@ -36,6 +39,8 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
   late TextEditingController toController;
   late TextEditingController expenseDateController;
 
+  late UserDetailsProvider _userDetailsProvider;
+
   String? selectedExpenseGroup;
 
   bool isBorrowedOrLended = false;
@@ -48,6 +53,11 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
     fromController = TextEditingController();
     toController = TextEditingController();
     expenseDateController = TextEditingController();
+
+    _userDetailsProvider = Provider.of<UserDetailsProvider>(
+      context,
+      listen: false,
+    );
 
     // Initialize controllers with the transaction data if editing
     amountController = TextEditingController(
@@ -198,12 +208,33 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
       } else {
         await dbService.insert(userTransaction);
       }
+
+      UserModel user = _userDetailsProvider.user!;
+
+      double amount = double.tryParse(amountController.text.trim()) ?? 0.0;
+
+      if (fromController.text.trim() == user.name) {
+        // I paid someone else → my balance should go down
+        user = user.copyWith(total: (user.total ?? 0) - amount);
+      } else {
+        // Someone else paid me (or from someone else to me) → my balance goes up
+        user = user.copyWith(total: (user.total ?? 0) + amount);
+      }
+
+      _userDetailsProvider.updateUserDetails(user);
+
       widget.callBack(true);
     } catch (e) {
       log(e.toString());
       showErrorDialog("Failed to save transaction: $e");
     }
   }
+
+  final TextStyle _sectionLabelStyle = TextStyle(
+    fontSize: 13,
+    fontWeight: FontWeight.w500,
+    color: Colors.deepPurpleAccent.withOpacity(0.9),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -232,13 +263,22 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
             Expanded(
               child: ListView(
                 children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12, top: 8, bottom: 4),
+                    child: Text("Amount", style: _sectionLabelStyle),
+                  ),
                   CustomTextBox(
-                    hintText: "Amount",
+                    hintText: "0.00",
                     controller: amountController,
                     icon: Icons.currency_rupee,
                     inputType: TextInputType.numberWithOptions(decimal: true),
                   ),
                   const SizedBox(height: 5),
+
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12, top: 8, bottom: 4),
+                    child: Text("Payer & Receiver", style: _sectionLabelStyle),
+                  ),
                   Row(
                     children: [
                       Expanded(
@@ -249,12 +289,15 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
                           onChange: (callback) => setState(() {}),
                         ),
                       ),
-                      // Interchange IconButton
-                      InkWell(
-                        onTap: swapText,
-                        child: Icon(Icons.swap_horiz, size: 24),
+                      IconButton(
+                        onPressed: swapText,
+                        icon: Icon(
+                          Icons.swap_horiz,
+                          size: 24,
+                          color: Colors.deepPurple,
+                        ),
+                        tooltip: "Swap",
                       ),
-                      SizedBox(height: 16),
                       Expanded(
                         child: CustomTextBox(
                           hintText: "To",
@@ -265,6 +308,7 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
                       ),
                     ],
                   ),
+
                   Visibility(
                     visible:
                         fromController.text.trim() != toController.text.trim(),

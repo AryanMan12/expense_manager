@@ -3,10 +3,13 @@ import 'package:expense_manager/models/user_transactions_db_model.dart';
 import 'package:expense_manager/providers/app_data_provider.dart';
 import 'package:expense_manager/providers/user_details_provider.dart';
 import 'package:expense_manager/screens/main_screen/widgets/initial_name_popup.dart';
-import 'package:expense_manager/screens/transactions_screen/widgets/overview_widget.dart';
+import 'package:expense_manager/screens/transactions_screen/widgets/fixed_overview_card.dart';
+import 'package:expense_manager/screens/transactions_screen/widgets/scroll_overview_card.dart';
 import 'package:expense_manager/screens/transactions_screen/widgets/single_transaction_list_tile.dart';
 import 'package:expense_manager/screens/transactions_screen/widgets/expense_entry_popup.dart';
+import 'package:expense_manager/utils/utility.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 class TransactionsScreen extends StatefulWidget {
@@ -21,9 +24,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   bool isExpensePopupOpen = false;
   String selectedPeriod = 'Month';
 
+  DateTimeRange? customDateRange;
+
   List<UserTransactionModel> filteredTransactions = [];
 
   double totalAmount = 0.0;
+  double totalBorrowed = 0.0;
+  double totalLent = 0.0;
+  double totalSavings = 0.0;
+  double totalIncome = 0.0;
+  double totalInvested = 0.0;
   int totalTransactions = 0;
   int borrowLendTransactions = 0;
 
@@ -52,7 +62,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Future<void> _loadTransactions() async {
     setState(() => isLoading = true);
 
-    // Get start and end dates based on the selected period
     DateTime now = DateTime.now();
     DateTime startDate;
     DateTime endDate;
@@ -63,10 +72,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         endDate = startDate.add(Duration(days: 1));
         break;
       case 'Week':
-        startDate = now.subtract(
-          Duration(days: now.weekday - 1),
-        ); // Start of week (Monday)
-        endDate = startDate.add(Duration(days: 7)); // End of the week (Sunday)
+        startDate = now.subtract(Duration(days: now.weekday - 1));
+        endDate = startDate.add(Duration(days: 7));
         break;
       case 'Month':
         startDate = DateTime(now.year, now.month, 1);
@@ -76,26 +83,61 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         startDate = DateTime(now.year, 1, 1);
         endDate = DateTime(now.year + 1, 1, 1);
         break;
+      case 'Custom':
+        if (customDateRange == null) return;
+        startDate = customDateRange!.start;
+        endDate = customDateRange!.end.add(Duration(days: 1));
+        break;
       default:
-        throw Exception("Invalid time period");
+        return;
     }
 
     final dbService = UserTransactionsDBService();
     List<UserTransactionModel> transactions = await dbService
         .getTransactionsInRange(startDate, endDate);
 
-    // Process data
-    totalAmount = transactions.fold(0.0, (sum, transaction) {
-      return sum + (transaction.amount ?? 0);
-    });
+    Map<String, double> borrowLendMap = await dbService
+        .getTotalBorrowedLentAmounts(
+          startDate,
+          endDate,
+          _userDetailsProvider.user!.name!,
+        );
+    List<UserTransactionModel> savingsList = await dbService
+        .getSavingsTransactions(startDate, endDate);
+    List<UserTransactionModel> investmentList = await dbService
+        .getInvestedTransactions(startDate, endDate);
 
-    totalTransactions = transactions.length;
+    final actualExpenses = transactions.where(
+      (t) =>
+          t.payerName == _userDetailsProvider.user!.name! &&
+          t.isBorrowedOrLended == 2,
+    );
 
-    borrowLendTransactions = transactions
-        .where((transaction) => transaction.isBorrowedOrLended != 2)
-        .length;
+    final actualIncome = transactions.where(
+      (t) =>
+          t.payerName != _userDetailsProvider.user!.name! &&
+          t.isBorrowedOrLended == 2,
+    );
 
     setState(() {
+      totalAmount = actualExpenses.fold(0.0, (sum, t) => sum + (t.amount ?? 0));
+      totalIncome = actualIncome.fold(0.0, (sum, t) => sum + (t.amount ?? 0));
+      totalTransactions = transactions.length;
+      borrowLendTransactions = transactions
+          .where((t) => t.isBorrowedOrLended != 2)
+          .length;
+
+      totalBorrowed = borrowLendMap['totalBorrowed'] ?? 0.0;
+      totalLent = borrowLendMap['totalLent'] ?? 0.0;
+      totalSavings = savingsList.fold(0.0, (sum, t) => sum + (t.amount ?? 0));
+      totalInvested = investmentList.fold(
+        0.0,
+        (sum, t) => sum + (t.amount ?? 0),
+      );
+
+      totalAmount += totalLent;
+      totalIncome += totalBorrowed;
+
       filteredTransactions = transactions;
       selectedIndex = null;
       isLoading = false;
@@ -106,22 +148,231 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     setState(() => isExpensePopupOpen = !isExpensePopupOpen);
   }
 
-  Widget _buildPeriodButton(String period) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: ElevatedButton(
-        onPressed: () {
-          setState(() => selectedPeriod = period);
-          _loadTransactions();
+  Widget _buildPeriodSelector() {
+    final periods = ["Day", "Week", "Month", "Year", "Custom"];
+
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        itemCount: periods.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final period = periods[index];
+          final isSelected = selectedPeriod == period;
+
+          return GestureDetector(
+            onTap: () async {
+              if (period == "Custom") {
+                final picked = await showDateRangePicker(
+                  context: context,
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime.now(),
+                  initialDateRange: customDateRange,
+                );
+
+                if (picked != null) {
+                  setState(() {
+                    selectedPeriod = "Custom";
+                    customDateRange = picked;
+                  });
+                  _loadTransactions(); // Pass customDateRange inside this
+                }
+              } else {
+                setState(() => selectedPeriod = period);
+                _loadTransactions();
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.deepPurple.shade100
+                    : Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected ? Colors.deepPurple : Colors.grey.shade400,
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                period,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? Colors.deepPurple : Colors.black54,
+                ),
+              ),
+            ),
+          );
         },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: selectedPeriod == period
-              ? Colors.deepPurpleAccent
-              : Colors.grey,
-        ),
-        child: Text(period, style: TextStyle(color: Colors.black)),
       ),
     );
+  }
+
+  void _showInsightModal(String type) async {
+    List<UserTransactionModel> items = [];
+
+    final now = DateTime.now();
+    DateTime startDate;
+    DateTime endDate;
+
+    switch (selectedPeriod) {
+      case 'Day':
+        startDate = DateTime(now.year, now.month, now.day);
+        endDate = startDate.add(Duration(days: 1));
+        break;
+      case 'Week':
+        startDate = now.subtract(Duration(days: now.weekday - 1));
+        endDate = startDate.add(Duration(days: 7));
+        break;
+      case 'Month':
+        startDate = DateTime(now.year, now.month, 1);
+        endDate = DateTime(now.year, now.month + 1, 1);
+        break;
+      case 'Year':
+        startDate = DateTime(now.year, 1, 1);
+        endDate = DateTime(now.year + 1, 1, 1);
+        break;
+      default:
+        return;
+    }
+
+    final db = UserTransactionsDBService();
+
+    if (type == "borrowed" || type == "lent") {
+      final all = await db.getTransactionsInRange(startDate, endDate);
+      items = all
+          .where(
+            (t) =>
+                t.isBorrowedOrLended == 1 &&
+                ((type == "borrowed" &&
+                        t.payerName != _userDetailsProvider.user!.name) ||
+                    (type == "lent" &&
+                        t.payerName == _userDetailsProvider.user!.name)),
+          )
+          .toList();
+    } else if (type == "savings") {
+      items = await db.getSavingsTransactions(startDate, endDate);
+    } else if (type == "investments") {
+      items = await db.getInvestedTransactions(startDate, endDate);
+    }
+
+    if (mounted) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        builder: (context) {
+          if (items.isEmpty) {
+            return Container(
+              height: 200,
+              alignment: Alignment.center,
+              child: Text(
+                "No ${toTitleCase(type)} data available.",
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            );
+          }
+
+          return DraggableScrollableSheet(
+            expand: false,
+            builder: (_, controller) {
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Text(
+                      "${toTitleCase(type)} Details",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: controller,
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final item = items[index];
+                        // Adjust below according to your model fields:
+                        final displayName = item.payerName ?? "Unknown";
+                        final amount = item.amount ?? 0.0;
+                        final date = item.expenseDate != null
+                            ? DateTime.parse(item.expenseDate!)
+                            : DateTime.now();
+
+                        return Card(
+                          margin: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          child: ListTile(
+                            leading: Icon(
+                              _iconForType(type),
+                              color: _colorForType(type),
+                            ),
+                            title: Text(toTitleCase(displayName)),
+                            subtitle: Text(
+                              "₹${amount.toStringAsFixed(2)} • ${_formatDate(date)}",
+                            ),
+                            trailing: (type == "borrowed" || type == "lent")
+                                ? Text(
+                                    type == "borrowed" ? "Borrowed" : "Lent",
+                                    style: TextStyle(
+                                      color: type == "borrowed"
+                                          ? Colors.red
+                                          : Colors.green,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  )
+                                : null,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    }
+  }
+
+  IconData _iconForType(String type) {
+    switch (type.toLowerCase()) {
+      case 'borrowed':
+        return Icons.call_received;
+      case 'lent':
+        return Icons.call_made;
+      case 'savings':
+        return Icons.savings;
+      case 'invested':
+        return Icons.show_chart;
+      default:
+        return Icons.info_outline;
+    }
+  }
+
+  Color _colorForType(String type) {
+    switch (type.toLowerCase()) {
+      case 'borrowed':
+        return Colors.red;
+      case 'lent':
+        return Colors.green;
+      case 'savings':
+        return Colors.blue;
+      case 'invested':
+        return Colors.purple;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return "${date.day}/${date.month}/${date.year}";
   }
 
   @override
@@ -138,24 +389,83 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       child: Stack(
                         children: [
                           Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Overview Card
-                              OverviewCard(
-                                totalAmount: totalAmount,
+                              // Overview
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12.0,
+                                  vertical: 8,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      "Overview",
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 18,
+                                        color: Colors.deepPurple[400],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Divider(
+                                        thickness: 1,
+                                        color: Colors.grey[300],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // Fixed 3-card row
+                              OverviewFixedTopCards(
+                                balance:
+                                    _userDetailsProvider.user?.total ?? 0.0,
+                                totalIncome: totalIncome,
+                                totalSpent: totalAmount,
                                 totalTransactions: totalTransactions,
-                                borrowLendTransactions: borrowLendTransactions,
                               ),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 10),
+
+                              // Scrollable extra cards
+                              OverviewScrollTile(
+                                balance:
+                                    _userDetailsProvider.user?.total ?? 0.0,
+                                totalSpent: totalAmount,
+                                totalTransactions: totalTransactions,
+                                totalBorrowed: totalBorrowed,
+                                totalLent: totalLent,
+                                totalSavings: totalSavings,
+                                totalInvested: totalInvested,
+                                onTap: _showInsightModal,
+                              ),
+
+                              const SizedBox(height: 15),
+                              Divider(
+                                thickness: 1,
+                                height: 1,
+                                color: Colors.grey[300],
+                              ),
+                              const SizedBox(height: 10),
                               // Time Period Selector
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  _buildPeriodButton("Day"),
-                                  _buildPeriodButton("Week"),
-                                  _buildPeriodButton("Month"),
-                                  _buildPeriodButton("Year"),
-                                ],
-                              ),
+                              _buildPeriodSelector(),
+                              if (selectedPeriod == "Custom" &&
+                                  customDateRange != null)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 4,
+                                  ),
+                                  child: Text(
+                                    "From: ${DateFormat.yMMMd().format(customDateRange!.start)}  "
+                                    "To: ${DateFormat.yMMMd().format(customDateRange!.end)}",
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ),
+
                               const SizedBox(height: 20),
                               // Loading Spinner
                               if (isLoading)
@@ -163,7 +473,36 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                               else
                                 // List of Transactions
                                 filteredTransactions.isEmpty
-                                    ? Center(child: Text("No Transactions Yet"))
+                                    ? Expanded(
+                                        child: Center(
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.info_outline,
+                                                size: 50,
+                                                color: Colors.grey,
+                                              ),
+                                              SizedBox(height: 10),
+                                              Text(
+                                                "No transactions found for the $selectedPeriod",
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  color: Colors.grey,
+                                                ),
+                                              ),
+                                              SizedBox(height: 5),
+                                              Text(
+                                                "Start by adding some expenses or income.",
+                                                style: TextStyle(
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      )
                                     : Expanded(
                                         child: ListView.builder(
                                           itemCount:

@@ -78,6 +78,7 @@ class UserTransactionsDBService {
     return await db.delete(tableName);
   }
 
+  // For Dashboard screen
   Future<double> getTotalAmountSpent(
     DateTime startDate,
     DateTime endDate,
@@ -212,5 +213,52 @@ class UserTransactionsDBService {
         .toList();
 
     return userTransactions;
+  }
+
+  // For Overview screen
+  Future<List<UserTransactionModel>> getSavingsTransactions(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    final db = await AppDatabase.instance.database;
+    final start = startDate.toIso8601String();
+    final end = endDate.toIso8601String();
+
+    final savingsCategoryId = 6;
+
+    final result = await db.query(
+      tableName,
+      where:
+          '''
+      $expenseDateField BETWEEN ? AND ? AND
+      $expenseGroupIdField = ?
+    ''',
+      whereArgs: [start, end, savingsCategoryId],
+    );
+
+    return result.map((e) => UserTransactionModel.fromJson(e)).toList();
+  }
+
+  Future<List<UserTransactionModel>> getInvestedTransactions(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    final db = await AppDatabase.instance.database;
+    final start = startDate.toIso8601String();
+    final end = endDate.toIso8601String();
+
+    final investmentCategoryId = 7; // From your list
+
+    final result = await db.query(
+      tableName,
+      where:
+          '''
+      $expenseDateField BETWEEN ? AND ? AND
+      $expenseGroupIdField = ?
+    ''',
+      whereArgs: [start, end, investmentCategoryId],
+    );
+
+    return result.map((e) => UserTransactionModel.fromJson(e)).toList();
   }
 }
