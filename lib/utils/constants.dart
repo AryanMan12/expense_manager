@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+const String appName = "Expense Tracker";
+
 class ListOfExpenses {
   static const List<String> listOfExpenses = [
     "Food",

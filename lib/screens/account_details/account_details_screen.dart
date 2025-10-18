@@ -1,4 +1,4 @@
-import 'package:expense_manager/models/database_models/users_db_model.dart';
+import 'package:expense_manager/models/users_db_model.dart';
 import 'package:expense_manager/providers/user_details_provider.dart';
 import 'package:expense_manager/widgets/custom_buttons/cusstom_button.dart';
 import 'package:expense_manager/widgets/custom_inputs/custom_text_box.dart';

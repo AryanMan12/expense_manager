@@ -1,5 +1,5 @@
 import 'package:expense_manager/database/user_transactions_database.dart';
-import 'package:expense_manager/models/database_models/user_transactions_db_model.dart';
+import 'package:expense_manager/models/user_transactions_db_model.dart';
 import 'package:expense_manager/providers/app_data_provider.dart';
 import 'package:expense_manager/providers/user_details_provider.dart';
 import 'package:expense_manager/screens/main_screen/widgets/initial_name_popup.dart';
@@ -38,7 +38,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       context,
       listen: false,
     );
-    _userDetailsProvider.getUserDetails();
     _loadUserDetails();
     _loadTransactions();
   }
@@ -108,19 +107,20 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Widget _buildPeriodButton(String period) {
-    return ElevatedButton(
-      onPressed: () {
-        setState(() {
-          selectedPeriod = period;
-        });
-        _loadTransactions(); // Refresh transactions based on the selected period
-      },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: selectedPeriod == period
-            ? Colors.deepPurpleAccent
-            : Colors.grey,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: ElevatedButton(
+        onPressed: () {
+          setState(() => selectedPeriod = period);
+          _loadTransactions();
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: selectedPeriod == period
+              ? Colors.deepPurpleAccent
+              : Colors.grey,
+        ),
+        child: Text(period, style: TextStyle(color: Colors.black)),
       ),
-      child: Text(period, style: TextStyle(color: Colors.black)),
     );
   }
 

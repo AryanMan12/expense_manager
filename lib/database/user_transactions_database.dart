@@ -1,6 +1,6 @@
 import 'package:expense_manager/database/app_database.dart';
 import 'package:expense_manager/database/database_config.dart';
-import 'package:expense_manager/models/database_models/user_transactions_db_model.dart';
+import 'package:expense_manager/models/user_transactions_db_model.dart';
 import 'package:sqflite/sqflite.dart';
 
 class UserTransactionsDBService {
@@ -202,10 +202,13 @@ class UserTransactionsDBService {
       tableName,
       where: "$expenseDateField BETWEEN ? AND ?",
       whereArgs: [startDateString, endDateString],
+      orderBy: expenseDateField,
     );
 
     List<UserTransactionModel> userTransactions = allData
         .map((x) => UserTransactionModel.fromJson(x))
+        .toList()
+        .reversed
         .toList();
 
     return userTransactions;

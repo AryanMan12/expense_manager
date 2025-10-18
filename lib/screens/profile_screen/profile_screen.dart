@@ -22,7 +22,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return Column(
           children: [
             const SizedBox(height: 10),
-            CircularProfile(userName: userDetailsProvider.user!.name!),
+            CircularProfile(
+              userName: userDetailsProvider.user?.name ?? "Username",
+            ),
             const SizedBox(height: 5),
             Container(
               height: 5,

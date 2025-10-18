@@ -1,6 +1,6 @@
 import 'package:expense_manager/database/app_database.dart';
 import 'package:expense_manager/database/database_config.dart';
-import 'package:expense_manager/models/database_models/events_db_model.dart';
+import 'package:expense_manager/models/events_db_model.dart';
 import 'package:sqflite/sqflite.dart';
 
 class EventDBService {

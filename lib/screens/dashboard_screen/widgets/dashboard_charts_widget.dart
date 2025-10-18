@@ -1,4 +1,4 @@
-import 'package:expense_manager/models/database_models/user_transactions_db_model.dart';
+import 'package:expense_manager/models/user_transactions_db_model.dart';
 import 'package:expense_manager/screens/dashboard_screen/widgets/show_chart_details_sheet.dart';
 import 'package:expense_manager/utils/constants.dart';
 import 'package:expense_manager/utils/date_utils.dart';

@@ -1,9 +1,12 @@
-import 'package:expense_manager/constants/string_constants.dart';
+import 'dart:async';
+
 import 'package:expense_manager/main.dart';
 import 'package:expense_manager/providers/app_data_provider.dart';
+import 'package:expense_manager/providers/user_details_provider.dart';
 import 'package:expense_manager/screens/dashboard_screen/dashboard_screen.dart';
 import 'package:expense_manager/screens/profile_screen/profile_screen.dart';
 import 'package:expense_manager/screens/transactions_screen/transactions_screen.dart';
+import 'package:expense_manager/utils/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -31,10 +34,16 @@ class _MainScreenState extends State<MainScreen> {
   ];
 
   bool _backButtonPressedOnce = false;
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    Provider.of<UserDetailsProvider>(context, listen: false).getUserDetails();
+    Timer.periodic(
+      Duration(seconds: 1),
+      (v) => setState(() => isLoading = false),
+    );
   }
 
   void changeTabEvent(int index) {
@@ -90,13 +99,15 @@ class _MainScreenState extends State<MainScreen> {
                 backgroundColor: Theme.of(context).colorScheme.inversePrimary,
                 title: Text(appName, style: TextStyle(fontFamily: "Ariel")),
               ),
-              body: Stack(
-                children: [
-                  _buildOffstageNavigator(0, appDataProvider.currentTab),
-                  _buildOffstageNavigator(1, appDataProvider.currentTab),
-                  _buildOffstageNavigator(2, appDataProvider.currentTab),
-                ],
-              ),
+              body: isLoading
+                  ? Center(child: CircularProgressIndicator())
+                  : Stack(
+                      children: [
+                        _buildOffstageNavigator(0, appDataProvider.currentTab),
+                        _buildOffstageNavigator(1, appDataProvider.currentTab),
+                        _buildOffstageNavigator(2, appDataProvider.currentTab),
+                      ],
+                    ),
               bottomNavigationBar: BottomNavigationBar(
                 items: [
                   BottomNavigationBarItem(

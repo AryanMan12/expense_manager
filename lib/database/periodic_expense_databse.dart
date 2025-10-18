@@ -1,6 +1,6 @@
 import 'package:expense_manager/database/app_database.dart';
 import 'package:expense_manager/database/database_config.dart';
-import 'package:expense_manager/models/database_models/periodic_expense_db_model.dart';
+import 'package:expense_manager/models/periodic_expense_db_model.dart';
 import 'package:sqflite/sqflite.dart';
 
 class PeriodicExpenseDBService {

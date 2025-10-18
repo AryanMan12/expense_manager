@@ -1,7 +1,7 @@
 import 'package:expense_manager/utils/constants.dart';
 import 'package:expense_manager/utils/ui_callbacks.dart';
 import 'package:flutter/material.dart';
-import 'package:expense_manager/models/database_models/user_transactions_db_model.dart';
+import 'package:expense_manager/models/user_transactions_db_model.dart';
 import 'package:expense_manager/database/user_transactions_database.dart'; // Assuming this contains your DB delete method
 
 class TransactionListTile extends StatelessWidget {
