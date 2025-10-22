@@ -1,6 +1,6 @@
 import 'package:expense_manager/providers/user_details_provider.dart';
 import 'package:expense_manager/screens/account_details/account_details_screen.dart';
-import 'package:expense_manager/screens/list_of_expense_group/list_of_expense_group_screen.dart';
+import 'package:expense_manager/screens/list_of_expense_group/expense_category_list_screen.dart';
 import 'package:expense_manager/screens/list_of_users/list_of_users_screen.dart';
 import 'package:expense_manager/screens/profile_screen/widgets/circular_profile.dart';
 import 'package:expense_manager/screens/profile_screen/widgets/profile_menu_widget.dart';
@@ -51,7 +51,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ProfileMenuWidget(
                     menuName: "Expense Groups",
                     icon: Icons.workspaces_outline,
-                    screen: ListOfExpenseGroupScreen(),
+                    screen: ExpenseCategoryListScreen(),
                   ),
                 ],
               ),

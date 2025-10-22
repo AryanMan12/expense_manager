@@ -1,40 +1,45 @@
 import 'package:expense_manager/database/database_config.dart';
 
 // DB Constants
-const String tableName = "expense_group"; // Table name is now expense_group
+const String tableName = "expense_group";
 const String nameField = "name";
+const String iconField = "icon";
 const String tagsField = "tags";
 
 // List of columns in the expense_group table
 const List<String> expenseGroupColumns = [
   idField,
   nameField,
+  iconField,
   tagsField,
   createdDateField,
   modifiedDateField,
 ];
 
-// Model
-class ExpenseGroupModel {
+// Category Model
+class ExpenseCategoryModel {
   final int? id;
   final String? name;
+  final String? icon;
   final String? tags;
   final String? createdDate;
   final String? modifiedDate;
 
-  ExpenseGroupModel({
+  ExpenseCategoryModel({
     this.id,
     this.name,
+    this.icon,
     this.tags,
     this.createdDate,
     this.modifiedDate,
   });
 
   // Convert JSON to Model
-  factory ExpenseGroupModel.fromJson(Map<String, dynamic> json) =>
-      ExpenseGroupModel(
+  factory ExpenseCategoryModel.fromJson(Map<String, dynamic> json) =>
+      ExpenseCategoryModel(
         id: json[idField],
         name: json[nameField],
+        icon: json[iconField],
         tags: json[tagsField],
         createdDate: json[createdDateField],
         modifiedDate: json[modifiedDateField],
@@ -44,6 +49,7 @@ class ExpenseGroupModel {
   Map<String, dynamic> toJson() => {
     idField: id,
     nameField: name,
+    iconField: icon,
     tagsField: tags,
     createdDateField: createdDate,
     modifiedDateField: modifiedDate,

@@ -1,10 +1,9 @@
 import 'dart:async';
-
 import 'package:expense_manager/models/user_transactions_db_model.dart';
+import 'package:expense_manager/providers/expense_category_provider.dart';
 import 'package:expense_manager/providers/user_details_provider.dart';
 import 'package:expense_manager/screens/dashboard_screen/widgets/dashboard_charts_widget.dart';
 import 'package:expense_manager/screens/dashboard_screen/widgets/dashboard_helper_summary_widgets.dart';
-import 'package:expense_manager/utils/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:expense_manager/database/user_transactions_database.dart';
 import 'package:provider/provider.dart';
@@ -31,11 +30,16 @@ class _DashboardBodyState extends State<DashboardScreen> {
   List<Map<String, dynamic>> timeseries = [];
 
   late UserDetailsProvider _userDetailsProvider;
+  late ExpenseCategoryProvider _categoryProvider;
 
   @override
   void initState() {
     super.initState();
     _userDetailsProvider = Provider.of<UserDetailsProvider>(
+      context,
+      listen: false,
+    );
+    _categoryProvider = Provider.of<ExpenseCategoryProvider>(
       context,
       listen: false,
     );
@@ -80,7 +84,7 @@ class _DashboardBodyState extends State<DashboardScreen> {
     categoryBreakdown = expensesByCategory.entries
         .map(
           (entry) => {
-            'category': ListOfExpenses.getExpenseName(entry.key),
+            'category': _categoryProvider.getCategoryNameById(entry.key),
             'total': entry.value,
           },
         )
@@ -164,9 +168,11 @@ class _DashboardBodyState extends State<DashboardScreen> {
               SizedBox(height: 12),
               SizedBox(
                 height: 220,
-                child: DashboardChartsWidget(
-                  context,
-                ).buildPieChart(categoryBreakdown, timeseriesData),
+                child: DashboardChartsWidget(context).buildPieChart(
+                  categoryBreakdown,
+                  timeseriesData,
+                  _categoryProvider,
+                ),
               ),
 
               SizedBox(height: 24),
@@ -181,7 +187,7 @@ class _DashboardBodyState extends State<DashboardScreen> {
                 height: 220,
                 child: DashboardChartsWidget(
                   context,
-                ).buildLineChart(timeseries, timeseriesData),
+                ).buildLineChart(timeseries, timeseriesData, _categoryProvider),
               ),
 
               SizedBox(height: 24),
@@ -189,7 +195,7 @@ class _DashboardBodyState extends State<DashboardScreen> {
               // Insights Section
               Text('Insights', style: Theme.of(context).textTheme.titleLarge),
               SizedBox(height: 12),
-              buildInsights(expensesByCategory),
+              buildInsights(expensesByCategory, _categoryProvider),
             ],
           ),
         ),

@@ -1,5 +1,5 @@
 import 'dart:async';
-
+import 'package:expense_manager/database/db_init_data.dart';
 import 'package:expense_manager/main.dart';
 import 'package:expense_manager/providers/app_data_provider.dart';
 import 'package:expense_manager/providers/user_details_provider.dart';
@@ -36,14 +36,30 @@ class _MainScreenState extends State<MainScreen> {
   bool _backButtonPressedOnce = false;
   bool isLoading = true;
 
+  late UserDetailsProvider _userDetailsProvider;
+
   @override
   void initState() {
     super.initState();
-    Provider.of<UserDetailsProvider>(context, listen: false).getUserDetails();
-    Timer.periodic(
-      Duration(seconds: 1),
-      (v) => setState(() => isLoading = false),
+    _userDetailsProvider = Provider.of<UserDetailsProvider>(
+      context,
+      listen: false,
     );
+    _loadUserDetails();
+    DbInitData.initializeCategoryAndSubCategory();
+  }
+
+  Future<void> _loadUserDetails() async {
+    await _userDetailsProvider.getUserDetails();
+
+    // Wait for 1 second before setting isLoading false
+    await Future.delayed(Duration(seconds: 1));
+
+    if (mounted) {
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 
   void changeTabEvent(int index) {

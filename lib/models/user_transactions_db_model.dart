@@ -10,6 +10,8 @@ const String amountField = "amount";
 const String descriptionField = "description";
 const String expenseGroupIdField =
     "expense_group_id"; // Foreign Key to Expense Group
+const String expenseSubGroupIdField =
+    "expense_sub_group_id"; // Foreign Key to Expense Group
 const String eventIdField = "event_id"; // Foreign Key to Event
 const String splitTransactionIdField =
     "split_transaction_id"; // ID of related split transaction
@@ -24,6 +26,7 @@ const List<String> userTransactionsColumns = [
   amountField,
   descriptionField,
   expenseGroupIdField,
+  expenseSubGroupIdField,
   eventIdField,
   splitTransactionIdField,
   isBorrowedOrLendedField,
@@ -40,9 +43,10 @@ class UserTransactionModel {
   final double? amount;
   final String? description;
   final int? expenseGroupId; // Foreign Key to Expense Group
+  final int? expenseSubGroupId; // Foreign Key to Expense Group
   final int? eventId; // Foreign Key to Event
   final int? splitTransactionId; // ID of related split transaction
-  final int? isBorrowedOrLended; // 1 or 2, indicating borrowed or lent
+  final int? isBorrowedOrLended; // 1: borrowed/lent, 2: regular
   final String? expenseDate;
   final String? createdDate;
   final String? modifiedDate;
@@ -54,6 +58,7 @@ class UserTransactionModel {
     this.amount,
     this.description,
     this.expenseGroupId,
+    this.expenseSubGroupId,
     this.eventId,
     this.splitTransactionId,
     this.isBorrowedOrLended,
@@ -71,6 +76,7 @@ class UserTransactionModel {
         amount: json[amountField],
         description: json[descriptionField],
         expenseGroupId: json[expenseGroupIdField],
+        expenseSubGroupId: json[expenseSubGroupIdField],
         eventId: json[eventIdField],
         splitTransactionId: json[splitTransactionIdField],
         isBorrowedOrLended: json[isBorrowedOrLendedField],
@@ -87,6 +93,7 @@ class UserTransactionModel {
     amountField: amount,
     descriptionField: description,
     expenseGroupIdField: expenseGroupId,
+    expenseSubGroupIdField: expenseSubGroupId,
     eventIdField: eventId,
     splitTransactionIdField: splitTransactionId,
     isBorrowedOrLendedField: isBorrowedOrLended,

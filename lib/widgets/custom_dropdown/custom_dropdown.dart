@@ -1,60 +1,55 @@
 import 'package:flutter/material.dart';
 
-class CustomDropdownField extends StatelessWidget {
+class CustomDropdownBox<T> extends StatelessWidget {
   final String hintText;
-  final IconData icon;
-  final List<String> items;
-  final String? selectedValue;
-  final Function(String?) onChanged;
-  final double borderRadius;
+  final List<T> items;
+  final T? selectedValue;
+  final ValueChanged<T?> onChanged;
+  final TextStyle? textStyle;
+  final bool showBorder;
+  final TextAlign? textAlign;
 
-  const CustomDropdownField({
+  const CustomDropdownBox({
     super.key,
     required this.hintText,
     required this.items,
+    required this.selectedValue,
     required this.onChanged,
-    this.selectedValue,
-    this.icon = Icons.arrow_drop_down,
-    this.borderRadius = 15.0,
+    this.textStyle,
+    this.showBorder = true,
+    this.textAlign,
   });
 
   @override
   Widget build(BuildContext context) {
+    final border = showBorder
+        ? OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: BorderSide(color: Colors.grey, width: 1),
+          )
+        : InputBorder.none;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: InputDecorator(
+      child: DropdownButtonFormField<T>(
+        initialValue: selectedValue,
+        items: items.map((item) {
+          return DropdownMenuItem<T>(
+            value: item,
+            child: Text(
+              item.toString(),
+              style: textStyle,
+              textAlign: textAlign ?? TextAlign.start,
+            ),
+          );
+        }).toList(),
+        onChanged: onChanged,
         decoration: InputDecoration(
-          prefixIcon: Icon(icon),
           labelText: hintText,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(
-              borderRadius,
-            ), // Custom border radius
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-            borderSide: BorderSide(color: Colors.deepPurpleAccent, width: 2),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-            borderSide: BorderSide(color: Colors.grey, width: 1),
-          ),
-          contentPadding: EdgeInsets.symmetric(vertical: 4, horizontal: 20),
-        ),
-        child: DropdownButton<String>(
-          value: selectedValue,
-          onChanged: onChanged,
-          isExpanded: true,
-          underline: SizedBox(),
-          items: items.map((String value) {
-            return DropdownMenuItem<String>(
-              value: value,
-              child: Text(
-                value,
-                style: TextStyle(fontWeight: FontWeight.normal),
-              ),
-            );
-          }).toList(),
+          floatingLabelBehavior: FloatingLabelBehavior.never,
+          border: border,
+          enabledBorder: border,
+          focusedBorder: border,
         ),
       ),
     );

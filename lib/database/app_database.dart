@@ -1,4 +1,6 @@
 import 'dart:developer';
+import 'package:expense_manager/database/expense_category_database.dart';
+import 'package:expense_manager/database/expense_sub_category_database.dart';
 import 'package:expense_manager/database/user_transactions_database.dart';
 import 'package:expense_manager/database/users_database.dart';
 import 'package:path/path.dart';
@@ -22,18 +24,29 @@ class AppDatabase {
   Future _createDB(Database db, int version) async {
     final userTransactionsDB = UserTransactionsDBService();
     final userDB = UserDBService();
+    final expenseCategoryDB = ExpenseCategoryDBService();
+    final expenseSubCategoryDB = ExpenseSubCategoryDBService();
     log("Creating tables...");
     await db.execute(userTransactionsDB.createQuery);
     await db.execute(userDB.createQuery);
+    await db.execute(expenseCategoryDB.createQuery);
+    await db.execute(expenseSubCategoryDB.createQuery);
     log("Tables created successfully.");
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     log("Upgrading database from $oldVersion to $newVersion");
-    if (oldVersion < 4) {
+    if (oldVersion < 6) {
+      final userTransactionsDB = UserTransactionsDBService();
       final userDB = UserDBService();
+      final expenseCategoryDB = ExpenseCategoryDBService();
+      final expenseSubCategoryDB = ExpenseSubCategoryDBService();
+      await db.execute(userTransactionsDB.createQuery);
       await db.execute(userDB.createQuery);
+      await db.execute(expenseCategoryDB.createQuery);
+      await db.execute(expenseSubCategoryDB.createQuery);
     }
+    log("Upgraded database from $oldVersion to $newVersion");
   }
 
   Future<Database> _initializedDB(String fileName) async {
@@ -41,7 +54,7 @@ class AppDatabase {
     final path = join(dbPath, fileName);
     return await openDatabase(
       path,
-      version: 4,
+      version: 6,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -56,3 +69,5 @@ class AppDatabase {
 // DB version and changes
 // 1: User Transaction Table Created
 // 4: Users Table Created
+// 5: Added Category and Sub Category
+// 6: Added Expense Sub Group column in User Transactions DB

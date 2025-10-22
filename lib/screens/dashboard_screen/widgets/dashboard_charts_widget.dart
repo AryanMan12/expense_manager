@@ -1,9 +1,10 @@
 import 'package:expense_manager/models/user_transactions_db_model.dart';
+import 'package:expense_manager/providers/expense_category_provider.dart';
 import 'package:expense_manager/screens/dashboard_screen/widgets/show_chart_details_sheet.dart';
-import 'package:expense_manager/utils/constants.dart';
 import 'package:expense_manager/utils/date_utils.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class DashboardChartsWidget {
   late BuildContext context;
@@ -15,7 +16,10 @@ class DashboardChartsWidget {
     String categoryName,
     List<UserTransactionModel> timeseriesData,
   ) {
-    final int categoryId = ListOfExpenses.getExpenseId(categoryName);
+    final int categoryId = Provider.of<ExpenseCategoryProvider>(
+      context,
+      listen: false,
+    ).getCategoryIdByName(categoryName)!;
 
     // Filter transactions by group ID
     final filteredTransactions = timeseriesData
@@ -50,6 +54,7 @@ class DashboardChartsWidget {
   Widget buildPieChart(
     List<Map<String, dynamic>> breakdown,
     List<UserTransactionModel> timeseriesData,
+    ExpenseCategoryProvider categoryProvider,
   ) {
     if (breakdown.isEmpty) return Center(child: Text('No data available'));
 
@@ -113,6 +118,7 @@ class DashboardChartsWidget {
               selectedCategory,
               recentTransactions,
               (callback) => _isBottomSheetOpen = false,
+              categoryProvider,
             );
           },
         ),
@@ -124,6 +130,7 @@ class DashboardChartsWidget {
   Widget buildLineChart(
     List<Map<String, dynamic>> series,
     List<UserTransactionModel> timeseriesData,
+    ExpenseCategoryProvider categoryProvider,
   ) {
     if (series.isEmpty) return Center(child: Text('No data available'));
 
@@ -212,6 +219,7 @@ class DashboardChartsWidget {
               {"date": tappedDate, "total": totalSpent},
               recentTransactions,
               (callback) => _isBottomSheetOpen = false,
+              categoryProvider,
             );
           },
         ),

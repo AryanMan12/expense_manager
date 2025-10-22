@@ -1,18 +1,18 @@
 import 'dart:developer';
+import 'package:dropdown_search/dropdown_search.dart';
 import 'package:expense_manager/database/user_transactions_database.dart';
+import 'package:expense_manager/models/expense_sub_category_db_model.dart';
 import 'package:expense_manager/models/user_transactions_db_model.dart';
 import 'package:expense_manager/models/users_db_model.dart';
+import 'package:expense_manager/providers/expense_category_provider.dart';
 import 'package:expense_manager/providers/user_details_provider.dart';
-import 'package:expense_manager/utils/constants.dart';
 import 'package:expense_manager/utils/date_utils.dart';
 import 'package:expense_manager/utils/ui_callbacks.dart';
 import 'package:expense_manager/widgets/custom_buttons/cusstom_button.dart';
 import 'package:expense_manager/widgets/custom_checkbox/custom_checkbox.dart';
 import 'package:expense_manager/widgets/custom_dropdown/custom_dropdown.dart';
-import 'package:expense_manager/widgets/custom_inputs/custom_date_time_picker.dart';
 import 'package:expense_manager/widgets/custom_inputs/custom_text_area.dart';
 import 'package:expense_manager/widgets/custom_inputs/custom_text_box.dart';
-import 'package:expense_manager/widgets/navigation_bars/custom_popup_header.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -40,6 +40,13 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
   late TextEditingController expenseDateController;
 
   late UserDetailsProvider _userDetailsProvider;
+  late ExpenseCategoryProvider _categoryProvider;
+
+  late String _uiDate;
+  late String _uiTime;
+
+  int? selectedSubCategoryId;
+  String? selectedSubCategoryName;
 
   String? selectedExpenseGroup;
 
@@ -59,6 +66,17 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
       listen: false,
     );
 
+    _categoryProvider = Provider.of<ExpenseCategoryProvider>(
+      context,
+      listen: false,
+    );
+
+    _categoryProvider.fetchCategories().then((_) async {
+      for (var cat in _categoryProvider.categories) {
+        await _categoryProvider.fetchSubCategories(cat.id!);
+      }
+    });
+
     // Initialize controllers with the transaction data if editing
     amountController = TextEditingController(
       text: widget.transactionToEdit?.amount.toString() ?? '',
@@ -72,20 +90,16 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
     toController = TextEditingController(
       text: widget.transactionToEdit?.receiverName ?? widget.userName,
     );
-    if ((widget.transactionToEdit?.expenseDate ?? '') == '') {
-      expenseDateController = TextEditingController(
-        text: getCurrentUIDateTime(),
-      );
-    } else {
-      expenseDateController = TextEditingController(
-        text: DateFormat(
-          uiDateTimeFormat,
-        ).format(DateTime.parse(widget.transactionToEdit!.expenseDate!)),
-      );
-    }
+    final now = widget.transactionToEdit?.expenseDate != null
+        ? DateTime.parse(widget.transactionToEdit!.expenseDate!)
+        : DateTime.now();
+
+    _uiDate = DateFormat('dd MMM yyyy').format(now);
+    _uiTime = DateFormat('hh:mm a').format(now);
+    expenseDateController = TextEditingController(text: now.toIso8601String());
 
     // Set the expense group if editing
-    selectedExpenseGroup = ListOfExpenses.getExpenseName(
+    selectedExpenseGroup = _categoryProvider.getCategoryNameById(
       widget.transactionToEdit?.expenseGroupId ?? 1,
     );
 
@@ -189,7 +203,9 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
       receiverName: toController.text.trim(),
       amount: double.tryParse(amountController.text),
       description: descController.text,
-      expenseGroupId: ListOfExpenses.getExpenseId(selectedExpenseGroup),
+      expenseGroupId: _categoryProvider.getCategoryIdByName(
+        selectedExpenseGroup!,
+      ),
       eventId: 1, // Example event ID, modify as needed
       splitTransactionId: null,
       isBorrowedOrLended: isBorrowedOrLended ? 1 : 2,
@@ -208,16 +224,12 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
       } else {
         await dbService.insert(userTransaction);
       }
-
       UserModel user = _userDetailsProvider.user!;
-
       double amount = double.tryParse(amountController.text.trim()) ?? 0.0;
 
       if (fromController.text.trim() == user.name) {
-        // I paid someone else → my balance should go down
         user = user.copyWith(total: (user.total ?? 0) - amount);
       } else {
-        // Someone else paid me (or from someone else to me) → my balance goes up
         user = user.copyWith(total: (user.total ?? 0) + amount);
       }
 
@@ -230,11 +242,103 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
     }
   }
 
-  final TextStyle _sectionLabelStyle = TextStyle(
-    fontSize: 13,
-    fontWeight: FontWeight.w500,
-    color: Colors.deepPurpleAccent.withOpacity(0.9),
-  );
+  Widget _buildDatePicker() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: GestureDetector(
+        onTap: () async {
+          final now = DateTime.now();
+
+          final pickedDate = await showDatePicker(
+            context: context,
+            initialDate: now,
+            firstDate: DateTime(2000),
+            lastDate: DateTime(2100),
+          );
+
+          if (pickedDate == null) return;
+          if (mounted) {
+            final pickedTime = await showTimePicker(
+              context: context,
+              initialTime: TimeOfDay.fromDateTime(now),
+            );
+
+            if (pickedTime == null) return;
+
+            final fullDateTime = DateTime(
+              pickedDate.year,
+              pickedDate.month,
+              pickedDate.day,
+              pickedTime.hour,
+              pickedTime.minute,
+            );
+
+            final formattedDate = DateFormat(
+              'dd MMM yyyy',
+            ).format(fullDateTime);
+            final formattedTime = DateFormat('hh:mm a').format(fullDateTime);
+
+            setState(() {
+              expenseDateController.text = fullDateTime.toIso8601String();
+              _uiDate = formattedDate;
+              _uiTime = formattedTime;
+            });
+          }
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              _uiDate,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              _uiTime,
+              style: const TextStyle(
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+                color: Colors.black54,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _handleAddNewSubCategory(String newSubName) async {
+    if (newSubName.trim().isEmpty) return;
+
+    final selectedCategoryId = _categoryProvider.getCategoryIdByName(
+      selectedExpenseGroup ?? '',
+    );
+    if (selectedCategoryId == null) {
+      showErrorDialog("Please select a category before adding a subcategory.");
+      return;
+    }
+
+    final newSub = ExpenseSubCategoryModel(
+      name: newSubName.trim(),
+      categoryId: selectedCategoryId,
+    );
+
+    await _categoryProvider.addSubCategory(newSub);
+
+    await _categoryProvider.fetchSubCategories(selectedCategoryId);
+
+    setState(() {
+      selectedSubCategoryName = newSubName;
+      selectedSubCategoryId = _categoryProvider
+          .subCategoriesForCategory(selectedCategoryId)
+          .firstWhere((s) => s.name == newSubName)
+          .id;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -242,7 +346,7 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
     return Center(
       child: Container(
         height: screenSize.height * 0.6,
-        width: screenSize.width * 0.9,
+        width: screenSize.width * 0.95,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
@@ -258,130 +362,250 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
         ),
         child: Column(
           children: [
-            CustomPopupHeader(headerText: "Add Transaction", isVisible: false),
-            const SizedBox(height: 5),
             Expanded(
               child: ListView(
+                padding: const EdgeInsets.all(12),
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 12, top: 8, bottom: 4),
-                    child: Text("Amount", style: _sectionLabelStyle),
-                  ),
-                  CustomTextBox(
-                    hintText: "0.00",
-                    controller: amountController,
-                    icon: Icons.currency_rupee,
-                    inputType: TextInputType.numberWithOptions(decimal: true),
-                  ),
-                  const SizedBox(height: 5),
+                  // 🕒 Date
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          child: Text(
+                            widget.transactionToEdit == null
+                                ? "Add Transaction"
+                                : "Edit Transaction",
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.deepPurple,
+                            ),
+                          ),
+                        ),
+                      ),
 
-                  Padding(
-                    padding: const EdgeInsets.only(left: 12, top: 8, bottom: 4),
-                    child: Text("Payer & Receiver", style: _sectionLabelStyle),
+                      _buildDatePicker(),
+                    ],
                   ),
+
+                  const SizedBox(height: 16),
+
+                  // 🧑 From / To
                   Row(
                     children: [
                       Expanded(
                         child: CustomTextBox(
                           hintText: "From",
+                          helperText: "From",
                           controller: fromController,
-                          icon: Icons.person_outline_rounded,
                           onChange: (callback) => setState(() {}),
                         ),
                       ),
                       IconButton(
                         onPressed: swapText,
-                        icon: Icon(
-                          Icons.swap_horiz,
-                          size: 24,
-                          color: Colors.deepPurple,
-                        ),
-                        tooltip: "Swap",
+                        icon: Icon(Icons.swap_horiz),
+                        padding: const EdgeInsets.only(bottom: 12),
                       ),
                       Expanded(
                         child: CustomTextBox(
                           hintText: "To",
+                          helperText: "To",
                           controller: toController,
-                          icon: Icons.person_outline_rounded,
                           onChange: (callback) => setState(() {}),
                         ),
                       ),
                     ],
                   ),
 
-                  Visibility(
-                    visible:
-                        fromController.text.trim() != toController.text.trim(),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 5),
-                        CustomCheckboxField(
-                          label: fromController.text.trim() == widget.userName
-                              ? "Lend"
-                              : "Borrowed",
-                          value: isBorrowedOrLended,
-                          onChanged: (val) => setState(
-                            () => isBorrowedOrLended = !isBorrowedOrLended,
-                          ),
+                  // ☑️ Borrowed / Lended
+                  if (fromController.text.trim() != toController.text.trim())
+                    CustomCheckboxField(
+                      label: fromController.text.trim() == widget.userName
+                          ? "Lend"
+                          : "Borrowed",
+                      value: isBorrowedOrLended,
+                      onChanged: (val) => setState(
+                        () => isBorrowedOrLended = !isBorrowedOrLended,
+                      ),
+                    ),
+
+                  // 💰 Amount (centered, large)
+                  Center(
+                    child: SizedBox(
+                      width: 200,
+                      child: CustomTextBox(
+                        hintText: "₹0.00",
+                        controller: amountController,
+                        inputType: TextInputType.numberWithOptions(
+                          decimal: true,
                         ),
-                      ],
+                        textStyle: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        helperText: "Amount",
+                        textAlign: TextAlign.center,
+                        autoFocus: true,
+                        hideBorder: true,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 5),
-                  CustomDropdownField(
-                    hintText: "Expense Group",
-                    icon: Icons.food_bank,
-                    items: ListOfExpenses.listOfExpenses,
-                    selectedValue: selectedExpenseGroup,
-                    onChanged: (val) =>
-                        setState(() => selectedExpenseGroup = val),
-                  ),
-                  const SizedBox(height: 5),
-                  CustomDateTimePicker(
-                    hintText: "Select Expense Date",
-                    controller: expenseDateController,
-                    onChange: (callback) => setState(() {}),
-                  ),
-                  const SizedBox(height: 5),
-                  CustomTextArea(
-                    hintText: "Description",
-                    controller: descController,
-                    icon: Icons.description,
-                  ),
 
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey),
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: DropdownSearch<String>(
+                        decoratorProps: DropDownDecoratorProps(
+                          decoration: InputDecoration(border: InputBorder.none),
+                        ),
+                        popupProps: PopupProps.menu(
+                          showSearchBox: true,
+                          emptyBuilder: (context, searchEntry) {
+                            if (searchEntry.isNotEmpty) {
+                              return ListTile(
+                                title: Text(
+                                  "Add '$searchEntry' as new subcategory",
+                                ),
+                                onTap: () {
+                                  Navigator.pop(context); // Close the popup
+                                  _handleAddNewSubCategory(searchEntry);
+                                },
+                              );
+                            }
+                            return const Center(
+                              child: Text("No matching subcategories"),
+                            );
+                          },
+                        ),
+                        items: (String filter, LoadProps? loadProps) async {
+                          List<ExpenseSubCategoryModel> filteredSubs = [];
+
+                          if (selectedExpenseGroup != null) {
+                            final selectedCategoryId = _categoryProvider
+                                .getCategoryIdByName(selectedExpenseGroup!);
+                            if (selectedCategoryId != null) {
+                              filteredSubs = _categoryProvider
+                                  .subCategoriesForCategory(selectedCategoryId);
+                            }
+                          } else {
+                            filteredSubs = _categoryProvider.categories
+                                .expand(
+                                  (cat) => _categoryProvider
+                                      .subCategoriesForCategory(cat.id!),
+                                )
+                                .toList();
+                          }
+
+                          final subNames = filteredSubs
+                              .map((s) => s.name!)
+                              .toSet()
+                              .toList();
+
+                          if (filter.isEmpty) return subNames;
+
+                          final lower = filter.toLowerCase();
+                          final matches = subNames
+                              .where(
+                                (name) => name.toLowerCase().contains(lower),
+                              )
+                              .toList();
+
+                          return matches;
+                        },
+                        selectedItem: selectedSubCategoryName,
+                        onChanged: (subName) {
+                          if (subName == null) return;
+
+                          setState(() {
+                            selectedSubCategoryName = subName;
+
+                            for (var cat in _categoryProvider.categories) {
+                              final found = _categoryProvider
+                                  .subCategoriesForCategory(cat.id!)
+                                  .firstWhere(
+                                    (s) => s.name == subName,
+                                    orElse: () => ExpenseSubCategoryModel(),
+                                  );
+                              if (found.id != null) {
+                                selectedExpenseGroup = cat.name;
+                                selectedSubCategoryId = found.id;
+                                break;
+                              }
+                            }
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  CustomDropdownBox(
+                    hintText: "Category",
+                    textStyle: TextStyle(overflow: TextOverflow.ellipsis),
+                    items: _categoryProvider.categoryNames,
+                    selectedValue: selectedExpenseGroup,
+                    onChanged: (val) {
+                      setState(() {
+                        selectedExpenseGroup = val;
+                        selectedSubCategoryName = null;
+                        selectedSubCategoryId = null;
+                      });
+                    },
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: CustomTextArea(
+                      hintText: "Description (optional)",
+                      controller: descController,
+                      icon: Icons.description,
+                    ),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(child: SizedBox()),
-                const SizedBox(width: 5),
-                Expanded(
-                  flex: 2,
-                  child: CustomButton(
-                    label: "Cancel",
-                    onPressed: () {
-                      widget.callBack(true);
-                    },
-                    color: Colors.grey,
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                children: [
+                  Expanded(child: SizedBox()), // Spacer
+                  const SizedBox(width: 5),
+                  Expanded(
+                    flex: 2,
+                    child: CustomButton(
+                      label: "Cancel",
+                      onPressed: () => widget.callBack(true),
+                      color: Colors.grey,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 5),
-                Expanded(
-                  flex: 2,
-                  child: CustomButton(
-                    label: "Save",
-                    onPressed: () async {
-                      await saveTransaction();
-                    },
-                    color: Colors.deepPurpleAccent,
+                  const SizedBox(width: 5),
+                  Expanded(
+                    flex: 2,
+                    child: CustomButton(
+                      label: "Save",
+                      onPressed: () async => await saveTransaction(),
+                      color: Colors.deepPurpleAccent,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(height: 4),
           ],
         ),
       ),

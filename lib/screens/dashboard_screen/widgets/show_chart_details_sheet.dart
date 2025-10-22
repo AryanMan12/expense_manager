@@ -1,4 +1,4 @@
-import 'package:expense_manager/utils/constants.dart';
+import 'package:expense_manager/providers/expense_category_provider.dart';
 import 'package:expense_manager/utils/ui_callbacks.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -8,6 +8,7 @@ void showDetailsBottomSheet(
   Map<String, dynamic> selectedCategory,
   List<Map<String, dynamic>> recentTransactions,
   BoolCallback onCompleteCallback,
+  ExpenseCategoryProvider categoryProvider,
 ) {
   showModalBottomSheet(
     context: context,
@@ -50,7 +51,10 @@ void showDetailsBottomSheet(
               Row(
                 children: [
                   categoryName != ''
-                      ? ListOfExpenses.getExpenseIcon(categoryName, size: 36)
+                      ? categoryProvider.getIconWidget(
+                          categoryProvider.getCategoryIconByName(categoryName),
+                          size: 36,
+                        )
                       : Text('📈', style: TextStyle(fontSize: 36)),
                   const SizedBox(width: 12),
                   Expanded(

@@ -12,6 +12,7 @@ class UserTransactionsDBService {
     $amountField $notNulldecimalType,
     $descriptionField $notNullTextType,
     $expenseGroupIdField $notNullIntType,
+    $expenseSubGroupIdField $notNullIntType,
     $eventIdField $notNullIntType,
     $splitTransactionIdField $intType,
     $isBorrowedOrLendedField $notNullIntType,

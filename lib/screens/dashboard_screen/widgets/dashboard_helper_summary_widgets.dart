@@ -1,8 +1,11 @@
 // Build Insights Section (e.g., Most Expensive Category, Trends)
-import 'package:expense_manager/utils/constants.dart';
+import 'package:expense_manager/providers/expense_category_provider.dart';
 import 'package:flutter/material.dart';
 
-Widget buildInsights(Map<int, double> expensesByCategory) {
+Widget buildInsights(
+  Map<int, double> expensesByCategory,
+  ExpenseCategoryProvider categoryProvider,
+) {
   final mostExpensiveCategory = expensesByCategory.entries.isNotEmpty
       ? expensesByCategory.entries.reduce((a, b) => a.value > b.value ? a : b)
       : null;
@@ -12,7 +15,7 @@ Widget buildInsights(Map<int, double> expensesByCategory) {
     children: [
       if (mostExpensiveCategory != null) ...[
         Text(
-          'Most Expensive Category: ${ListOfExpenses.getExpenseName(mostExpensiveCategory.key)}',
+          'Most Expensive Category: ${categoryProvider.getCategoryNameById(mostExpensiveCategory.key)}',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         Text(

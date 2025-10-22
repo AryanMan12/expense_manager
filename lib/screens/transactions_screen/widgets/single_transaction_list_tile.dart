@@ -1,4 +1,3 @@
-import 'package:expense_manager/utils/constants.dart';
 import 'package:expense_manager/utils/ui_callbacks.dart';
 import 'package:flutter/material.dart';
 import 'package:expense_manager/models/user_transactions_db_model.dart';
@@ -7,6 +6,7 @@ import 'package:intl/intl.dart';
 
 class TransactionListTile extends StatelessWidget {
   final UserTransactionModel transaction;
+  final String groupName;
   final VoidCallback onRefresh;
   final String userName;
   final VoidCallback onEditClicked;
@@ -17,6 +17,7 @@ class TransactionListTile extends StatelessWidget {
     required this.userName,
     required this.onRefresh,
     required this.onEditClicked,
+    required this.groupName,
   });
 
   void _showActionSheet(BuildContext context) {
@@ -70,9 +71,6 @@ class TransactionListTile extends StatelessWidget {
         transaction.payerName != userName &&
         transaction.isBorrowedOrLended == 2;
 
-    final String groupName = ListOfExpenses.getExpenseName(
-      transaction.expenseGroupId,
-    );
     final String formattedDate = transaction.expenseDate != null
         ? DateFormat(
             'd MMM yyyy',

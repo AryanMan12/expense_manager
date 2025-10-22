@@ -1,6 +1,8 @@
+import 'package:expense_manager/database/db_init_data.dart';
 import 'package:expense_manager/database/user_transactions_database.dart';
 import 'package:expense_manager/models/user_transactions_db_model.dart';
 import 'package:expense_manager/providers/app_data_provider.dart';
+import 'package:expense_manager/providers/expense_category_provider.dart';
 import 'package:expense_manager/providers/user_details_provider.dart';
 import 'package:expense_manager/screens/main_screen/widgets/initial_name_popup.dart';
 import 'package:expense_manager/screens/transactions_screen/widgets/fixed_overview_card.dart';
@@ -25,6 +27,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   String selectedPeriod = 'Month';
 
   DateTimeRange? customDateRange;
+  DateTime? startDate;
+  DateTime? endDate;
 
   List<UserTransactionModel> filteredTransactions = [];
 
@@ -40,6 +44,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   int? selectedIndex;
 
   late UserDetailsProvider _userDetailsProvider;
+  late ExpenseCategoryProvider _expenseCategoryProvider;
 
   @override
   initState() {
@@ -48,13 +53,26 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       context,
       listen: false,
     );
+    _expenseCategoryProvider = Provider.of<ExpenseCategoryProvider>(
+      context,
+      listen: false,
+    );
     _loadUserDetails();
+    if (_expenseCategoryProvider.categories.isEmpty) {
+      loadCategory();
+    }
     _loadTransactions();
+  }
+
+  Future<void> loadCategory() async {
+    _expenseCategoryProvider.fetchCategories();
+    _expenseCategoryProvider.fetchSubCategories(1);
   }
 
   Future<void> _loadUserDetails() async {
     if (_userDetailsProvider.user?.name == null) {
       await showNameInputDialog(context);
+      await DbInitData.initializeCategoryAndSubCategory();
       if (mounted) setState(() {});
     }
   }
@@ -63,17 +81,15 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     setState(() => isLoading = true);
 
     DateTime now = DateTime.now();
-    DateTime startDate;
-    DateTime endDate;
 
     switch (selectedPeriod) {
       case 'Day':
         startDate = DateTime(now.year, now.month, now.day);
-        endDate = startDate.add(Duration(days: 1));
+        endDate = startDate!.add(Duration(days: 1));
         break;
       case 'Week':
         startDate = now.subtract(Duration(days: now.weekday - 1));
-        endDate = startDate.add(Duration(days: 7));
+        endDate = startDate!.add(Duration(days: 7));
         break;
       case 'Month':
         startDate = DateTime(now.year, now.month, 1);
@@ -94,18 +110,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
     final dbService = UserTransactionsDBService();
     List<UserTransactionModel> transactions = await dbService
-        .getTransactionsInRange(startDate, endDate);
+        .getTransactionsInRange(startDate!, endDate!);
 
     Map<String, double> borrowLendMap = await dbService
         .getTotalBorrowedLentAmounts(
-          startDate,
-          endDate,
+          startDate!,
+          endDate!,
           _userDetailsProvider.user!.name!,
         );
     List<UserTransactionModel> savingsList = await dbService
-        .getSavingsTransactions(startDate, endDate);
+        .getSavingsTransactions(startDate!, endDate!);
     List<UserTransactionModel> investmentList = await dbService
-        .getInvestedTransactions(startDate, endDate);
+        .getInvestedTransactions(startDate!, endDate!);
 
     final actualExpenses = transactions.where(
       (t) =>
@@ -120,6 +136,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
 
     setState(() {
+      startDate = startDate;
+      endDate = endDate;
       totalAmount = actualExpenses.fold(0.0, (sum, t) => sum + (t.amount ?? 0));
       totalIncome = actualIncome.fold(0.0, (sum, t) => sum + (t.amount ?? 0));
       totalTransactions = transactions.length;
@@ -177,7 +195,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     selectedPeriod = "Custom";
                     customDateRange = picked;
                   });
-                  _loadTransactions(); // Pass customDateRange inside this
+                  _loadTransactions();
                 }
               } else {
                 setState(() => selectedPeriod = period);
@@ -450,23 +468,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                               const SizedBox(height: 10),
                               // Time Period Selector
                               _buildPeriodSelector(),
-                              if (selectedPeriod == "Custom" &&
-                                  customDateRange != null)
+                              if (startDate != null)
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
-                                    vertical: 4,
+                                    vertical: 6,
+                                    horizontal: 16,
                                   ),
                                   child: Text(
-                                    "From: ${DateFormat.yMMMd().format(customDateRange!.start)}  "
-                                    "To: ${DateFormat.yMMMd().format(customDateRange!.end)}",
+                                    "From: ${DateFormat.yMMMd().format(startDate!)}  "
+                                    "To: ${DateFormat.yMMMd().format(endDate!)}",
                                     style: TextStyle(
                                       fontSize: 14,
-                                      color: Colors.grey[600],
+                                      color: Colors.grey[700],
                                     ),
                                   ),
                                 ),
 
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 10),
                               // Loading Spinner
                               if (isLoading)
                                 Center(child: CircularProgressIndicator())
@@ -521,6 +539,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                                 selectedIndex = index;
                                                 openAddExpensePopup();
                                               },
+                                              groupName:
+                                                  _expenseCategoryProvider
+                                                      .getCategoryNameById(
+                                                        filteredTransactions[index]
+                                                            .expenseGroupId,
+                                                      ) ??
+                                                  "NA",
                                             );
                                           },
                                         ),
