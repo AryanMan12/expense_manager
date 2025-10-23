@@ -166,6 +166,57 @@ class UserTransactionsDBService {
     return payerExpenses;
   }
 
+  Future<Map<String, double>> getExpensesByReceiver(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    final db = await AppDatabase.instance.database;
+
+    final start = startDate.toIso8601String();
+    final end = endDate.toIso8601String();
+
+    final result = await db.rawQuery(
+      '''
+    SELECT $receiverNameField, SUM($amountField) as totalReceived
+    FROM $tableName
+    WHERE ($expenseDateField BETWEEN ? AND ?)
+    GROUP BY $receiverNameField
+    ORDER BY totalReceived DESC
+  ''',
+      [start, end],
+    );
+
+    Map<String, double> receiverTotals = {};
+    for (var row in result) {
+      final name = row[receiverNameField] as String?;
+      final total = (row['totalReceived'] as num?)?.toDouble() ?? 0.0;
+      if (name != null) receiverTotals[name] = total;
+    }
+
+    return receiverTotals;
+  }
+
+  Future<Map<String, Map<String, double>>> getPayerReceiverAnalysis(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    final payers = await getExpensesByPayer(startDate, endDate);
+    final receivers = await getExpensesByReceiver(startDate, endDate);
+
+    final allNames = {...payers.keys, ...receivers.keys};
+    final Map<String, Map<String, double>> combined = {};
+
+    for (final name in allNames) {
+      combined[name] = {
+        'paid': payers[name] ?? 0,
+        'received': receivers[name] ?? 0,
+        'net': (receivers[name] ?? 0) - (payers[name] ?? 0),
+      };
+    }
+
+    return combined;
+  }
+
   Future<Map<int, double>> getExpensesByGroup(
     DateTime startDate,
     DateTime endDate,
@@ -189,6 +240,35 @@ class UserTransactionsDBService {
     }
 
     return groupExpenses;
+  }
+
+  Future<Map<int, double>> getExpensesBySubGroup(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    final db = await AppDatabase.instance.database;
+
+    final start = startDate.toIso8601String();
+    final end = endDate.toIso8601String();
+
+    final result = await db.rawQuery(
+      '''
+    SELECT $expenseSubGroupIdField, SUM($amountField) as totalSpent
+    FROM $tableName
+    WHERE ($expenseDateField BETWEEN ? AND ?)
+    GROUP BY $expenseSubGroupIdField
+    ORDER BY totalSpent DESC
+  ''',
+      [start, end],
+    );
+
+    Map<int, double> subGroupExpenses = {};
+    for (var row in result) {
+      subGroupExpenses[row[expenseSubGroupIdField] as int] =
+          (row['totalSpent'] as num?)?.toDouble() ?? 0.0;
+    }
+
+    return subGroupExpenses;
   }
 
   Future<List<UserTransactionModel>> getTransactionsInRange(

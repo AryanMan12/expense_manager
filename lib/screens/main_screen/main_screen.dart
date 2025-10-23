@@ -3,7 +3,7 @@ import 'package:expense_manager/database/db_init_data.dart';
 import 'package:expense_manager/main.dart';
 import 'package:expense_manager/providers/app_data_provider.dart';
 import 'package:expense_manager/providers/user_details_provider.dart';
-import 'package:expense_manager/screens/dashboard_screen/dashboard_screen.dart';
+import 'package:expense_manager/screens/dashboard_screen1/dashboard_screen.dart';
 import 'package:expense_manager/screens/profile_screen/profile_screen.dart';
 import 'package:expense_manager/screens/transactions_screen/transactions_screen.dart';
 import 'package:expense_manager/utils/constants.dart';

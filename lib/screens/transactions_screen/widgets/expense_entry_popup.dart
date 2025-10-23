@@ -45,6 +45,8 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
   late String _uiDate;
   late String _uiTime;
 
+  DateTime? selectedExpenseDateTime;
+
   int? selectedSubCategoryId;
   String? selectedSubCategoryName;
 
@@ -96,7 +98,10 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
 
     _uiDate = DateFormat('dd MMM yyyy').format(now);
     _uiTime = DateFormat('hh:mm a').format(now);
-    expenseDateController = TextEditingController(text: now.toIso8601String());
+    expenseDateController = TextEditingController(
+      text: "$formattedDate\n$formattedTime",
+    );
+    selectedExpenseDateTime = now;
 
     // Set the expense group if editing
     selectedExpenseGroup = _categoryProvider.getCategoryNameById(
@@ -183,19 +188,6 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
   Future<void> saveTransaction() async {
     if (!validateFields()) return;
 
-    // Ensure expenseDateController is in ISO 8601 format
-    String expenseDate = expenseDateController.text.trim();
-    try {
-      DateTime parsedExpenseDate = DateFormat(
-        uiDateTimeFormat,
-      ).parse(expenseDate);
-      expenseDate = parsedExpenseDate.toIso8601String();
-    } catch (e) {
-      // If the date format is incorrect, show an error
-      showErrorDialog("Invalid date format. Please enter a valid date.");
-      return;
-    }
-
     // Create the UserTransactionModel from the form data
     final userTransaction = UserTransactionModel(
       id: widget.transactionToEdit?.id,
@@ -206,10 +198,13 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
       expenseGroupId: _categoryProvider.getCategoryIdByName(
         selectedExpenseGroup!,
       ),
+      expenseSubGroupId: selectedSubCategoryId,
       eventId: 1, // Example event ID, modify as needed
       splitTransactionId: null,
       isBorrowedOrLended: isBorrowedOrLended ? 1 : 2,
-      expenseDate: expenseDate,
+      expenseDate:
+          selectedExpenseDateTime?.toIso8601String() ??
+          DateTime.now().toIso8601String(),
       createdDate:
           widget.transactionToEdit?.createdDate ??
           DateTime.now().toIso8601String(),
@@ -279,7 +274,8 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
             final formattedTime = DateFormat('hh:mm a').format(fullDateTime);
 
             setState(() {
-              expenseDateController.text = fullDateTime.toIso8601String();
+              expenseDateController.text = "$formattedDate\n$formattedTime";
+              selectedExpenseDateTime = fullDateTime;
               _uiDate = formattedDate;
               _uiTime = formattedTime;
             });
@@ -349,14 +345,18 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
         width: screenSize.width * 0.95,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          color: Colors.white,
+          // background gradient or soft color
+          gradient: LinearGradient(
+            colors: [Colors.white, Colors.purple.shade50],
+            end: Alignment.topLeft,
+            begin: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withAlpha(128),
-              spreadRadius: 2,
-              blurRadius: 7,
-              offset: Offset(3, 1),
+              color: Colors.black.withValues(alpha: .1),
+              blurRadius: 12,
+              offset: Offset(0, 6),
             ),
           ],
         ),
@@ -463,95 +463,156 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
                       horizontal: 8,
                       vertical: 4,
                     ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey),
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      child: DropdownSearch<String>(
-                        decoratorProps: DropDownDecoratorProps(
-                          decoration: InputDecoration(border: InputBorder.none),
+                    child: DropdownSearch<String>(
+                      dropdownBuilder: (context, selectedItem) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Text(
+                            selectedItem ?? "Select Subcategory",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: selectedItem == null
+                                  ? Colors.grey
+                                  : Colors.black,
+                            ),
+                          ),
+                        );
+                      },
+                      popupProps: PopupProps.menu(
+                        showSearchBox: true,
+                        searchFieldProps: TextFieldProps(
+                          decoration: InputDecoration(
+                            // hintText: "Search subcategory...",
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                            ),
+                          ),
                         ),
-                        popupProps: PopupProps.menu(
-                          showSearchBox: true,
-                          emptyBuilder: (context, searchEntry) {
-                            if (searchEntry.isNotEmpty) {
-                              return ListTile(
-                                title: Text(
-                                  "Add '$searchEntry' as new subcategory",
-                                ),
-                                onTap: () {
-                                  Navigator.pop(context); // Close the popup
-                                  _handleAddNewSubCategory(searchEntry);
-                                },
-                              );
-                            }
-                            return const Center(
-                              child: Text("No matching subcategories"),
-                            );
-                          },
-                        ),
-                        items: (String filter, LoadProps? loadProps) async {
-                          List<ExpenseSubCategoryModel> filteredSubs = [];
+                        emptyBuilder: (context, searchEntry) {
+                          if (searchEntry.isNotEmpty) {
+                            return ListTile(
+                              title: Text(
+                                "Add '$searchEntry' as new subcategory",
+                              ),
+                              onTap: () async {
+                                final trimmedName = searchEntry
+                                    .trim()
+                                    .toLowerCase();
 
-                          if (selectedExpenseGroup != null) {
-                            final selectedCategoryId = _categoryProvider
-                                .getCategoryIdByName(selectedExpenseGroup!);
-                            if (selectedCategoryId != null) {
-                              filteredSubs = _categoryProvider
-                                  .subCategoriesForCategory(selectedCategoryId);
-                            }
-                          } else {
-                            filteredSubs = _categoryProvider.categories
-                                .expand(
-                                  (cat) => _categoryProvider
-                                      .subCategoriesForCategory(cat.id!),
-                                )
-                                .toList();
+                                final allSubcategories = _categoryProvider
+                                    .categories
+                                    .expand(
+                                      (cat) => _categoryProvider
+                                          .subCategoriesForCategory(cat.id!),
+                                    )
+                                    .toList();
+
+                                final exists = allSubcategories.any(
+                                  (sub) =>
+                                      sub.name?.trim().toLowerCase() ==
+                                      trimmedName,
+                                );
+
+                                if (exists) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        "Subcategory '$searchEntry' already exists.",
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                Navigator.pop(context); // Close the popup
+                                _handleAddNewSubCategory(searchEntry);
+                              },
+                            );
                           }
 
-                          final subNames = filteredSubs
-                              .map((s) => s.name!)
-                              .toSet()
-                              .toList();
+                          return const Center(
+                            child: Text("No matching subcategories"),
+                          );
+                        },
+                      ),
+                      items: (String filter, LoadProps? loadProps) async {
+                        List<ExpenseSubCategoryModel> filteredSubs = [];
 
-                          if (filter.isEmpty) return subNames;
-
-                          final lower = filter.toLowerCase();
-                          final matches = subNames
-                              .where(
-                                (name) => name.toLowerCase().contains(lower),
+                        if (selectedExpenseGroup != null) {
+                          final selectedCategoryId = _categoryProvider
+                              .getCategoryIdByName(selectedExpenseGroup!);
+                          if (selectedCategoryId != null) {
+                            filteredSubs = _categoryProvider
+                                .subCategoriesForCategory(selectedCategoryId);
+                          }
+                        } else {
+                          filteredSubs = _categoryProvider.categories
+                              .expand(
+                                (cat) => _categoryProvider
+                                    .subCategoriesForCategory(cat.id!),
                               )
                               .toList();
+                        }
 
-                          return matches;
-                        },
-                        selectedItem: selectedSubCategoryName,
-                        onChanged: (subName) {
-                          if (subName == null) return;
+                        final subNames = filteredSubs
+                            .map((s) => s.name!)
+                            .toSet()
+                            .toList();
 
-                          setState(() {
-                            selectedSubCategoryName = subName;
+                        if (filter.isEmpty) return subNames;
 
-                            for (var cat in _categoryProvider.categories) {
-                              final found = _categoryProvider
-                                  .subCategoriesForCategory(cat.id!)
-                                  .firstWhere(
-                                    (s) => s.name == subName,
-                                    orElse: () => ExpenseSubCategoryModel(),
-                                  );
-                              if (found.id != null) {
-                                selectedExpenseGroup = cat.name;
-                                selectedSubCategoryId = found.id;
-                                break;
-                              }
+                        final lower = filter.toLowerCase();
+                        return subNames
+                            .where((name) => name.toLowerCase().contains(lower))
+                            .toList();
+                      },
+                      selectedItem: selectedSubCategoryName,
+                      onChanged: (subName) {
+                        if (subName == null) return;
+
+                        setState(() {
+                          selectedSubCategoryName = subName;
+                          for (var cat in _categoryProvider.categories) {
+                            final found = _categoryProvider
+                                .subCategoriesForCategory(cat.id!)
+                                .firstWhere(
+                                  (s) => s.name == subName,
+                                  orElse: () => ExpenseSubCategoryModel(),
+                                );
+                            if (found.id != null) {
+                              selectedExpenseGroup = cat.name;
+                              selectedSubCategoryId = found.id;
+                              break;
                             }
-                          });
-                        },
+                          }
+                        });
+                      },
+                      decoratorProps: DropDownDecoratorProps(
+                        decoration: InputDecoration(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 16,
+                          ),
+                          // hintText: "Select Subcategory",
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: BorderSide(color: Colors.grey),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: BorderSide(color: Colors.grey),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: BorderSide(
+                              color: Colors.deepPurpleAccent,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
