@@ -25,7 +25,6 @@ class CategoryPieChart extends StatelessWidget {
 
     final pieSections = data.entries.toList().asMap().entries.map((entry) {
       final index = entry.key;
-      final label = entry.value.key;
       final value = entry.value.value;
       final percentage = (value / total) * 100;
 

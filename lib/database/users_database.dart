@@ -38,6 +38,16 @@ class UserDBService {
     return users;
   }
 
+  Future<UserModel?> getByName(String name) async {
+    Database db = await AppDatabase.instance.database;
+    final result = await db.query(
+      tableName,
+      where: "$nameField = ?",
+      whereArgs: [name.trim()],
+    );
+    return result.isNotEmpty ? UserModel.fromJson(result.first) : null;
+  }
+
   // Get a specific user by ID
   Future<UserModel?> getById(int id) async {
     Database db = await AppDatabase.instance.database;

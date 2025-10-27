@@ -76,7 +76,7 @@ class SpendingTrendChart extends StatelessWidget {
               barWidth: 3,
               belowBarData: BarAreaData(
                 show: true,
-                color: Colors.deepPurpleAccent.withOpacity(0.2),
+                color: Colors.deepPurpleAccent.withValues(alpha: 0.2),
               ),
               dotData: FlDotData(show: false),
             ),

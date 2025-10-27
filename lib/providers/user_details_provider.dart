@@ -17,4 +17,38 @@ class UserDetailsProvider extends ChangeNotifier {
     await UserDBService().update(userModel);
     notifyListeners();
   }
+
+  List<UserModel> _users = [];
+  List<UserModel> _filteredUsers = [];
+  List<UserModel> get users => _filteredUsers;
+
+  Future<void> fetchUsers() async {
+    final db = UserDBService();
+    _users = await db.getAll();
+    _filteredUsers = _users;
+    notifyListeners();
+  }
+
+  void searchUsers(String query) {
+    if (query.isEmpty) {
+      _filteredUsers = _users;
+    } else {
+      _filteredUsers = _users
+          .where(
+            (user) =>
+                user.name?.toLowerCase().contains(query.toLowerCase()) ?? false,
+          )
+          .toList();
+    }
+    notifyListeners();
+  }
+
+  void sortByBalanceDesc() {
+    _filteredUsers.sort(
+      (a, b) => ((b.moneyLend ?? 0) - (b.moneyBorrowed ?? 0)).compareTo(
+        (a.moneyLend ?? 0) - (a.moneyBorrowed ?? 0),
+      ),
+    );
+    notifyListeners();
+  }
 }

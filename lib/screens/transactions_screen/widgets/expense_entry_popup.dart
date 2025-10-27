@@ -1,6 +1,7 @@
 import 'dart:developer';
 import 'package:dropdown_search/dropdown_search.dart';
 import 'package:expense_manager/database/user_transactions_database.dart';
+import 'package:expense_manager/database/users_database.dart';
 import 'package:expense_manager/models/expense_sub_category_db_model.dart';
 import 'package:expense_manager/models/user_transactions_db_model.dart';
 import 'package:expense_manager/models/users_db_model.dart';
@@ -132,6 +133,11 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
 
   // Validate fields
   bool validateFields() {
+    amountController.text = amountController.text.trim();
+    fromController.text = fromController.text.trim();
+    toController.text = toController.text.trim();
+    descController.text = descController.text.trim();
+
     if (amountController.text.isEmpty) {
       // Amount cannot be empty
       showErrorDialog("Amount is required");
@@ -153,6 +159,16 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
     if (expenseDateController.text.isEmpty) {
       // Date is required
       showErrorDialog("Expense date is required");
+      return false;
+    }
+
+    if (selectedExpenseDateTime == null) {
+      showErrorDialog("Please select a valid date and time");
+      return false;
+    }
+
+    if (selectedSubCategoryId == null) {
+      showErrorDialog("Please select a Subcategory");
       return false;
     }
 
@@ -184,51 +200,107 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
     );
   }
 
+  Future<UserModel> ensureUserExists(String name) async {
+    final userDB = UserDBService();
+    final existing = await userDB.getByName(name);
+    if (existing != null) return existing;
+
+    final newUser = UserModel(
+      name: name.trim(),
+      total: 0.0,
+      moneyBorrowed: 0.0,
+      moneyLend: 0.0,
+      isActive: true,
+      createdDate: DateTime.now().toIso8601String(),
+      modifiedDate: DateTime.now().toIso8601String(),
+    );
+
+    final newId = await userDB.insert(newUser);
+    return newUser.copyWith(id: newId);
+  }
+
   // Save function
   Future<void> saveTransaction() async {
     if (!validateFields()) return;
 
-    // Create the UserTransactionModel from the form data
-    final userTransaction = UserTransactionModel(
-      id: widget.transactionToEdit?.id,
-      payerName: fromController.text.trim(),
-      receiverName: toController.text.trim(),
-      amount: double.tryParse(amountController.text),
-      description: descController.text,
-      expenseGroupId: _categoryProvider.getCategoryIdByName(
-        selectedExpenseGroup!,
-      ),
-      expenseSubGroupId: selectedSubCategoryId,
-      eventId: 1, // Example event ID, modify as needed
-      splitTransactionId: null,
-      isBorrowedOrLended: isBorrowedOrLended ? 1 : 2,
-      expenseDate:
-          selectedExpenseDateTime?.toIso8601String() ??
-          DateTime.now().toIso8601String(),
-      createdDate:
-          widget.transactionToEdit?.createdDate ??
-          DateTime.now().toIso8601String(),
-      modifiedDate: DateTime.now().toIso8601String(),
-    );
-
-    // Call the database service to insert the transaction
     final dbService = UserTransactionsDBService();
+    final userDB = UserDBService();
+
     try {
+      // Ensure both "From" and "To" users exist
+      final fromUser = await ensureUserExists(fromController.text.trim());
+      final toUser = await ensureUserExists(toController.text.trim());
+
+      // Prepare transaction
+      final userTransaction = UserTransactionModel(
+        id: widget.transactionToEdit?.id,
+        payerName: fromUser.name,
+        receiverName: toUser.name,
+        amount: double.tryParse(amountController.text),
+        description: descController.text,
+        expenseGroupId: _categoryProvider.getCategoryIdByName(
+          selectedExpenseGroup!,
+        ),
+        expenseSubGroupId: selectedSubCategoryId,
+        eventId: 1,
+        splitTransactionId: null,
+        isBorrowedOrLended: isBorrowedOrLended ? 1 : 2,
+        expenseDate:
+            selectedExpenseDateTime?.toIso8601String() ??
+            DateTime.now().toIso8601String(),
+        createdDate:
+            widget.transactionToEdit?.createdDate ??
+            DateTime.now().toIso8601String(),
+        modifiedDate: DateTime.now().toIso8601String(),
+      );
+
+      // Save transaction (insert or update)
       if (userTransaction.id != null) {
         await dbService.update(userTransaction);
       } else {
         await dbService.insert(userTransaction);
       }
-      UserModel user = _userDetailsProvider.user!;
-      double amount = double.tryParse(amountController.text.trim()) ?? 0.0;
 
-      if (fromController.text.trim() == user.name) {
-        user = user.copyWith(total: (user.total ?? 0) - amount);
-      } else {
-        user = user.copyWith(total: (user.total ?? 0) + amount);
+      // Update totals
+      final mainUser = _userDetailsProvider.user!;
+      double amount = double.tryParse(amountController.text.trim()) ?? 0.0;
+      UserModel updatedMain = mainUser;
+
+      // CASE 1️⃣: Main user is paying someone (expense)
+      if (fromUser.id == mainUser.id) {
+        updatedMain = updatedMain.copyWith(
+          total: (updatedMain.total ?? 0) - amount,
+          moneyLend: (updatedMain.moneyLend ?? 0) + amount,
+          modifiedDate: DateTime.now().toIso8601String(),
+        );
+
+        // Update the other user's side
+        final updatedReceiver = toUser.copyWith(
+          total: (toUser.total ?? 0) + amount,
+          moneyBorrowed: (toUser.moneyBorrowed ?? 0) + amount,
+          modifiedDate: DateTime.now().toIso8601String(),
+        );
+        await userDB.update(updatedReceiver);
+      }
+      // CASE 2️⃣: Main user is receiving money
+      else if (toUser.id == mainUser.id) {
+        updatedMain = updatedMain.copyWith(
+          total: (updatedMain.total ?? 0) + amount,
+          moneyBorrowed: (updatedMain.moneyBorrowed ?? 0) - amount,
+          modifiedDate: DateTime.now().toIso8601String(),
+        );
+
+        // Update the payer’s side
+        final updatedPayer = fromUser.copyWith(
+          total: (fromUser.total ?? 0) - amount,
+          moneyLend: (fromUser.moneyLend ?? 0) - amount,
+          modifiedDate: DateTime.now().toIso8601String(),
+        );
+        await userDB.update(updatedPayer);
       }
 
-      _userDetailsProvider.updateUserDetails(user);
+      // Save main user updates both in DB + provider
+      await _userDetailsProvider.updateUserDetails(updatedMain);
 
       widget.callBack(true);
     } catch (e) {

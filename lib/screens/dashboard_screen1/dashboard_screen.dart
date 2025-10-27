@@ -1,4 +1,5 @@
 import 'package:expense_manager/providers/dashboard_provider.dart';
+import 'package:expense_manager/providers/user_details_provider.dart';
 import 'package:expense_manager/screens/dashboard_screen1/widgets/category_pie_chart.dart';
 import 'package:expense_manager/screens/dashboard_screen1/widgets/dashboard_card.dart';
 import 'package:expense_manager/screens/dashboard_screen1/widgets/payer_receiver_card.dart';
@@ -6,7 +7,7 @@ import 'package:expense_manager/screens/dashboard_screen1/widgets/spending_trend
 import 'package:expense_manager/screens/dashboard_screen1/widgets/top_subcategories_list.dart';
 import 'package:flutter_heatmap_calendar/flutter_heatmap_calendar.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -25,6 +26,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     provider.loadDashboardData(
       startDate: DateTime.now().subtract(const Duration(days: 30)),
       endDate: DateTime.now(),
+      currentUserName:
+          Provider.of<UserDetailsProvider>(context, listen: false).user!.name ??
+          "Username",
     );
   }
 
@@ -47,6 +51,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               _buildTopSubcategories(),
               _buildPayerBreakdownCard(),
               _buildPayerReceiverSection(),
+              _buildBorrowedLentSummary(),
+              _buildBorrowedLentChart(),
               _buildHeatMap(),
             ],
           );
@@ -99,6 +105,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildBorrowedLentChart() {
+    final data = {
+      "Borrowed": provider.totalBorrowed,
+      "Lent": provider.totalLent,
+    };
+
+    return DashboardCard(
+      title: "Borrowed vs Lent",
+      child: CategoryPieChart(data: data),
+    );
+  }
+
   Widget _buildHeatMap() {
     return DashboardCard(
       title: "Heatmap of your Transaction",
@@ -123,6 +141,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
         endDate: provider.dailyTotals.keys.isNotEmpty
             ? provider.dailyTotals.keys.reduce((a, b) => a.isAfter(b) ? a : b)
             : DateTime.now(),
+      ),
+    );
+  }
+
+  Widget _buildBorrowedLentSummary() {
+    final net = provider.totalLent - provider.totalBorrowed;
+
+    return DashboardCard(
+      title: "Borrowed / Lent Summary",
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Total Borrowed:",
+                style: TextStyle(color: Colors.redAccent),
+              ),
+              Text(provider.totalBorrowed.toStringAsFixed(2)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("Total Lent:", style: TextStyle(color: Colors.green)),
+              Text(provider.totalLent.toStringAsFixed(2)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Divider(),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Net Balance:",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Text(
+                net.toStringAsFixed(2),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: net >= 0 ? Colors.green : Colors.red,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
