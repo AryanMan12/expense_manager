@@ -14,13 +14,12 @@ class CategoryPieChart extends StatelessWidget {
 
     final total = data.values.fold(0.0, (a, b) => a + b);
     final colorPalette = [
-      Colors.deepPurpleAccent,
-      Colors.orangeAccent,
-      Colors.teal,
-      Colors.pinkAccent,
-      Colors.blueAccent,
+      Colors.blue,
       Colors.green,
-      Colors.amber,
+      Colors.orange,
+      Colors.purple,
+      Colors.red,
+      Colors.teal,
     ];
 
     final pieSections = data.entries.toList().asMap().entries.map((entry) {

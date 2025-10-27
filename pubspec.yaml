@@ -18,7 +18,8 @@ dependencies:
   path_provider: ^2.0.0
   fl_chart: ^1.1.1
   dropdown_search: ^6.0.2
-  flutter_heatmap_calendar: ^1.0.5
+  # flutter_heatmap_calendar: ^1.0.5
+  table_calendar: ^3.0.9
 
 dev_dependencies:
   flutter_test:

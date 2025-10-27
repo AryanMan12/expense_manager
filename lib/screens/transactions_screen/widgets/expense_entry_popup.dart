@@ -78,6 +78,28 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
       for (var cat in _categoryProvider.categories) {
         await _categoryProvider.fetchSubCategories(cat.id!);
       }
+
+      if (widget.transactionToEdit != null) {
+        final subId = widget.transactionToEdit!.expenseSubGroupId;
+        if (subId != null) {
+          // Find the subcategory by ID
+          for (var cat in _categoryProvider.categories) {
+            final sub = _categoryProvider
+                .subCategoriesForCategory(cat.id!)
+                .firstWhere(
+                  (s) => s.id == subId,
+                  orElse: () => ExpenseSubCategoryModel(),
+                );
+            if (sub.id != null) {
+              setState(() {
+                selectedSubCategoryId = sub.id;
+                selectedSubCategoryName = sub.name;
+              });
+              break;
+            }
+          }
+        }
+      }
     });
 
     // Initialize controllers with the transaction data if editing
@@ -208,6 +230,10 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
     final newUser = UserModel(
       name: name.trim(),
       total: 0.0,
+      savings: 0.0,
+      invested: 0.0,
+      dailyLimit: 0.0,
+      moneyLeftFromDaily: 0.0,
       moneyBorrowed: 0.0,
       moneyLend: 0.0,
       isActive: true,

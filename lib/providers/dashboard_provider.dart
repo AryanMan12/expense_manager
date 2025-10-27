@@ -30,12 +30,14 @@ class DashboardDataProvider extends ChangeNotifier {
     final txs = await _dbService.getTransactionsInRange(startDate, endDate);
     transactions = txs;
 
-    await _computeCategoryTotals(txs);
-    await _computeSubCategoryTotals(txs);
-    await _computePayerBreakdown(txs);
-    await _computePayerReceiverData(txs);
-    await _computeDailyTrends(txs);
-    await _computeBorrowedLentTotals(startDate, endDate, currentUserName);
+    await Future.wait([
+      _computeCategoryTotals(txs),
+      _computeSubCategoryTotals(txs),
+      _computePayerBreakdown(txs),
+      _computePayerReceiverData(txs),
+      _computeDailyTrends(txs),
+      _computeBorrowedLentTotals(startDate, endDate, currentUserName),
+    ]);
 
     isLoading = false;
     notifyListeners();
