@@ -20,6 +20,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   late DashboardDataProvider provider;
   late ExpenseCategoryProvider _categoryProvider;
+  late UserDetailsProvider _userDetailsProvider;
   DateTimeRange? selectedRange;
 
   @override
@@ -35,6 +36,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context,
       listen: false,
     );
+    _userDetailsProvider = Provider.of<UserDetailsProvider>(
+      context,
+      listen: false,
+    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _categoryProvider.fetchCategories();
@@ -47,11 +52,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadDashboardData() async {
-    final user = Provider.of<UserDetailsProvider>(context, listen: false).user;
     await provider.loadDashboardData(
       startDate: selectedRange!.start,
       endDate: selectedRange!.end,
-      currentUserName: user?.name ?? "Username",
+      currentUserName: _userDetailsProvider.user?.name ?? "Username",
     );
   }
 
@@ -75,66 +79,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return ChangeNotifierProvider.value(
       value: provider,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Dashboard'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.date_range_rounded),
-              tooltip: "Select Date Range",
-              onPressed: _pickDateRange,
-            ),
-          ],
-        ),
-        body: Consumer<DashboardDataProvider>(
-          builder: (context, provider, _) {
-            if (provider.isLoading) {
-              return const Center(child: CircularProgressIndicator());
-            }
+        body: Consumer<UserDetailsProvider>(
+          builder: (context, userDetailsProvider, child) {
+            return userDetailsProvider.user?.name == null
+                ? Center(child: Text("Waiting For Useranme"))
+                : Consumer<DashboardDataProvider>(
+                    builder: (context, provider, _) {
+                      if (provider.isLoading) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
 
-            if (provider.transactions.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.insights_outlined,
-                      size: 64,
-                      color: theme.colorScheme.outline,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      "No transactions found in this range",
-                      style: theme.textTheme.bodyLarge!.copyWith(
-                        color: theme.colorScheme.outline,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
+                      if (provider.transactions.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.insights_outlined,
+                                size: 64,
+                                color: theme.colorScheme.outline,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                "No transactions found in this range",
+                                style: theme.textTheme.bodyLarge!.copyWith(
+                                  color: theme.colorScheme.outline,
+                                ),
+                              ),
+                              InkWell(
+                                onTap: _loadDashboardData,
+                                child: Text("Refresh"),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
 
-            return RefreshIndicator(
-              onRefresh: _loadDashboardData,
-              child: ListView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                children: [
-                  _buildHeader(theme),
-                  const SizedBox(height: 12),
-                  _animatedSection(_buildTrendChart()),
-                  _animatedSection(_buildCategoryPieChart()),
-                  _animatedSection(_buildTopSubcategories()),
-                  _animatedSection(_buildPayerBreakdownCard()),
-                  _animatedSection(_buildPayerReceiverSection()),
-                  _animatedSection(_buildBorrowedLentSummary()),
-                  _animatedSection(_buildBorrowedLentChart()),
-                  _animatedSection(_buildHeatMap()),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            );
+                      return RefreshIndicator(
+                        onRefresh: _loadDashboardData,
+                        child: ListView(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          children: [
+                            _buildHeader(theme),
+                            const SizedBox(height: 12),
+                            _animatedSection(_buildTrendChart()),
+                            _animatedSection(_buildCategoryPieChart()),
+                            _animatedSection(_buildTopSubcategories()),
+                            _animatedSection(_buildPayerBreakdownCard()),
+                            _animatedSection(_buildPayerReceiverSection()),
+                            _animatedSection(_buildBorrowedLentSummary()),
+                            _animatedSection(_buildBorrowedLentChart()),
+                            _animatedSection(_buildHeatMap()),
+                            const SizedBox(height: 16),
+                          ],
+                        ),
+                      );
+                    },
+                  );
           },
         ),
       ),

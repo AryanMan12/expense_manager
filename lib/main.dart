@@ -15,7 +15,25 @@ void main() {
         ChangeNotifierProvider(create: (_) => UserDetailsProvider()),
         ChangeNotifierProvider(create: (_) => ExpenseCategoryProvider()),
       ],
-      child: const MainScreen(),
+      child: const ExpenseManagerApp(),
     ),
   );
+}
+
+class ExpenseManagerApp extends StatelessWidget {
+  const ExpenseManagerApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Expense Manager',
+      debugShowCheckedModeBanner: false,
+      navigatorKey: mainNavigatorKey,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
+      ),
+      home: const MainScreen(),
+    );
+  }
 }

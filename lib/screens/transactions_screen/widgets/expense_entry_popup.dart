@@ -126,10 +126,11 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
     );
     selectedExpenseDateTime = now;
 
-    // Set the expense group if editing
-    selectedExpenseGroup = _categoryProvider.getCategoryNameById(
-      widget.transactionToEdit?.expenseGroupId ?? 1,
-    );
+    selectedExpenseGroup = widget.transactionToEdit?.expenseGroupId != null
+        ? _categoryProvider.getCategoryNameById(
+            widget.transactionToEdit?.expenseGroupId,
+          )
+        : "All";
 
     isBorrowedOrLended = widget.transactionToEdit?.isBorrowedOrLended == 1;
   }
@@ -411,7 +412,7 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
     final selectedCategoryId = _categoryProvider.getCategoryIdByName(
       selectedExpenseGroup ?? '',
     );
-    if (selectedCategoryId == null) {
+    if (selectedCategoryId == null || selectedExpenseGroup == "All") {
       showErrorDialog("Please select a category before adding a subcategory.");
       return;
     }
@@ -556,6 +557,22 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
 
                   const SizedBox(height: 12),
 
+                  CustomDropdownBox(
+                    hintText: "Category",
+                    textStyle: TextStyle(overflow: TextOverflow.ellipsis),
+                    items: ["All", ..._categoryProvider.categoryNames],
+                    selectedValue: selectedExpenseGroup,
+                    showFloatingHint: true,
+                    onChanged: (val) {
+                      setState(() {
+                        selectedExpenseGroup = val;
+                        selectedSubCategoryName = null;
+                        selectedSubCategoryId = null;
+                      });
+                    },
+                  ),
+
+                  const SizedBox(height: 8),
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -581,7 +598,6 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
                         showSearchBox: true,
                         searchFieldProps: TextFieldProps(
                           decoration: InputDecoration(
-                            // hintText: "Search subcategory...",
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -626,7 +642,7 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
                                   return;
                                 }
 
-                                Navigator.pop(context); // Close the popup
+                                Navigator.pop(context);
                                 _handleAddNewSubCategory(searchEntry);
                               },
                             );
@@ -640,7 +656,8 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
                       items: (String filter, LoadProps? loadProps) async {
                         List<ExpenseSubCategoryModel> filteredSubs = [];
 
-                        if (selectedExpenseGroup != null) {
+                        if (selectedExpenseGroup != null &&
+                            selectedExpenseGroup != "All") {
                           final selectedCategoryId = _categoryProvider
                               .getCategoryIdByName(selectedExpenseGroup!);
                           if (selectedCategoryId != null) {
@@ -648,6 +665,7 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
                                 .subCategoriesForCategory(selectedCategoryId);
                           }
                         } else {
+                          // "All" selected → show every subcategory
                           filteredSubs = _categoryProvider.categories
                               .expand(
                                 (cat) => _categoryProvider
@@ -714,20 +732,7 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  CustomDropdownBox(
-                    hintText: "Category",
-                    textStyle: TextStyle(overflow: TextOverflow.ellipsis),
-                    items: _categoryProvider.categoryNames,
-                    selectedValue: selectedExpenseGroup,
-                    onChanged: (val) {
-                      setState(() {
-                        selectedExpenseGroup = val;
-                        selectedSubCategoryName = null;
-                        selectedSubCategoryId = null;
-                      });
-                    },
-                  ),
+
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8.0),
                     child: CustomTextArea(

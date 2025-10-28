@@ -121,84 +121,82 @@ class _DashboardBodyState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_today),
-            onPressed: () => pickDateRange(context),
-          ),
-        ],
-      ),
       body: RefreshIndicator(
         onRefresh: () async {
           await initialDataFromDB();
         },
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Date Range Section
-              Card(
-                child: ListTile(
-                  title: Text(
-                    'Showing Data from: ${currentRange.start.toLocal()} to ${currentRange.end.toLocal()}',
-                  ),
-                  trailing: Icon(Icons.calendar_today),
+        child: _userDetailsProvider.user?.name == null
+            ? Center(child: Text("Waiting For Useranme"))
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Date Range Section
+                    Card(
+                      child: ListTile(
+                        title: Text(
+                          'Showing Data from: ${currentRange.start.toLocal()} to ${currentRange.end.toLocal()}',
+                        ),
+                        trailing: Icon(Icons.calendar_today),
+                      ),
+                    ),
+                    SizedBox(height: 12),
+
+                    // Summary Cards
+                    Row(
+                      children: [
+                        buildSummaryCard('Total Spent', totalSpent),
+                        buildSummaryCard('Total Borrowed', totalBorrowed),
+                        buildSummaryCard('Total Lent', totalLent),
+                      ],
+                    ),
+                    SizedBox(height: 24),
+
+                    // Category Breakdown (Pie Chart)
+                    Text(
+                      'Expenses by Category',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    SizedBox(height: 12),
+                    SizedBox(
+                      height: 220,
+                      child: DashboardChartsWidget(context).buildPieChart(
+                        categoryBreakdown,
+                        timeseriesData,
+                        _categoryProvider,
+                      ),
+                    ),
+
+                    SizedBox(height: 24),
+
+                    // Expense Trend (Line Chart)
+                    Text(
+                      'Expense Trend',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    SizedBox(height: 12),
+                    SizedBox(
+                      height: 220,
+                      child: DashboardChartsWidget(context).buildLineChart(
+                        timeseries,
+                        timeseriesData,
+                        _categoryProvider,
+                      ),
+                    ),
+
+                    SizedBox(height: 24),
+
+                    // Insights Section
+                    Text(
+                      'Insights',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    SizedBox(height: 12),
+                    buildInsights(expensesByCategory, _categoryProvider),
+                  ],
                 ),
               ),
-              SizedBox(height: 12),
-
-              // Summary Cards
-              Row(
-                children: [
-                  buildSummaryCard('Total Spent', totalSpent),
-                  buildSummaryCard('Total Borrowed', totalBorrowed),
-                  buildSummaryCard('Total Lent', totalLent),
-                ],
-              ),
-              SizedBox(height: 24),
-
-              // Category Breakdown (Pie Chart)
-              Text(
-                'Expenses by Category',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              SizedBox(height: 12),
-              SizedBox(
-                height: 220,
-                child: DashboardChartsWidget(context).buildPieChart(
-                  categoryBreakdown,
-                  timeseriesData,
-                  _categoryProvider,
-                ),
-              ),
-
-              SizedBox(height: 24),
-
-              // Expense Trend (Line Chart)
-              Text(
-                'Expense Trend',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              SizedBox(height: 12),
-              SizedBox(
-                height: 220,
-                child: DashboardChartsWidget(
-                  context,
-                ).buildLineChart(timeseries, timeseriesData, _categoryProvider),
-              ),
-
-              SizedBox(height: 24),
-
-              // Insights Section
-              Text('Insights', style: Theme.of(context).textTheme.titleLarge),
-              SizedBox(height: 12),
-              buildInsights(expensesByCategory, _categoryProvider),
-            ],
-          ),
-        ),
       ),
     );
   }

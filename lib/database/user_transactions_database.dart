@@ -87,8 +87,8 @@ class UserTransactionsDBService {
     Database db = await AppDatabase.instance.database;
 
     // Convert DateTime to String for comparison
-    String startDateString = startDate.toIso8601String();
-    String endDateString = endDate.toIso8601String();
+    String startDateString = startDate.toIso8601String().split('T').first;
+    String endDateString = endDate.toIso8601String().split('T').first;
 
     final List<Map<String, dynamic>> result = await db.rawQuery(
       '''SELECT SUM($amountField) as totalSpent
@@ -111,8 +111,8 @@ class UserTransactionsDBService {
   ) async {
     Database db = await AppDatabase.instance.database;
 
-    String startDateString = startDate.toIso8601String();
-    String endDateString = endDate.toIso8601String();
+    String startDateString = startDate.toIso8601String().split('T').first;
+    String endDateString = endDate.toIso8601String().split('T').first;
 
     final List<Map<String, dynamic>> borrowedResult = await db.rawQuery(
       '''SELECT SUM($amountField) as totalBorrowed
@@ -147,8 +147,8 @@ class UserTransactionsDBService {
   ) async {
     Database db = await AppDatabase.instance.database;
 
-    String startDateString = startDate.toIso8601String();
-    String endDateString = endDate.toIso8601String();
+    String startDateString = startDate.toIso8601String().split('T').first;
+    String endDateString = endDate.toIso8601String().split('T').first;
 
     final List<Map<String, dynamic>> result = await db.rawQuery(
       '''SELECT $payerNameField, SUM($amountField) as totalSpent
@@ -172,8 +172,8 @@ class UserTransactionsDBService {
   ) async {
     final db = await AppDatabase.instance.database;
 
-    final start = startDate.toIso8601String();
-    final end = endDate.toIso8601String();
+    String startDateString = startDate.toIso8601String().split('T').first;
+    String endDateString = endDate.toIso8601String().split('T').first;
 
     final result = await db.rawQuery(
       '''
@@ -183,7 +183,7 @@ class UserTransactionsDBService {
     GROUP BY $receiverNameField
     ORDER BY totalReceived DESC
   ''',
-      [start, end],
+      [startDateString, endDateString],
     );
 
     Map<String, double> receiverTotals = {};
@@ -223,8 +223,8 @@ class UserTransactionsDBService {
   ) async {
     Database db = await AppDatabase.instance.database;
 
-    String startDateString = startDate.toIso8601String();
-    String endDateString = endDate.toIso8601String();
+    String startDateString = startDate.toIso8601String().split('T').first;
+    String endDateString = endDate.toIso8601String().split('T').first;
 
     final List<Map<String, dynamic>> result = await db.rawQuery(
       '''SELECT $expenseGroupIdField, SUM($amountField) as totalSpent
@@ -248,8 +248,8 @@ class UserTransactionsDBService {
   ) async {
     final db = await AppDatabase.instance.database;
 
-    final start = startDate.toIso8601String();
-    final end = endDate.toIso8601String();
+    String start = startDate.toIso8601String().split('T').first;
+    String end = endDate.toIso8601String().split('T').first;
 
     final result = await db.rawQuery(
       '''
@@ -277,8 +277,8 @@ class UserTransactionsDBService {
   ) async {
     Database db = await AppDatabase.instance.database;
 
-    String startDateString = startDate.toIso8601String();
-    String endDateString = endDate.toIso8601String();
+    String startDateString = startDate.toIso8601String().split('T').first;
+    String endDateString = endDate.toIso8601String().split('T').first;
 
     final List<Map<String, dynamic>> allData = await db.query(
       tableName,
@@ -302,8 +302,8 @@ class UserTransactionsDBService {
     DateTime endDate,
   ) async {
     final db = await AppDatabase.instance.database;
-    final start = startDate.toIso8601String();
-    final end = endDate.toIso8601String();
+    String startDateString = startDate.toIso8601String().split('T').first;
+    String endDateString = endDate.toIso8601String().split('T').first;
 
     final savingsCategoryId = 6;
 
@@ -314,7 +314,7 @@ class UserTransactionsDBService {
       $expenseDateField BETWEEN ? AND ? AND
       $expenseGroupIdField = ?
     ''',
-      whereArgs: [start, end, savingsCategoryId],
+      whereArgs: [startDateString, endDateString, savingsCategoryId],
     );
 
     return result.map((e) => UserTransactionModel.fromJson(e)).toList();
@@ -325,8 +325,8 @@ class UserTransactionsDBService {
     DateTime endDate,
   ) async {
     final db = await AppDatabase.instance.database;
-    final start = startDate.toIso8601String();
-    final end = endDate.toIso8601String();
+    String startDateString = startDate.toIso8601String().split('T').first;
+    String endDateString = endDate.toIso8601String().split('T').first;
 
     final investmentCategoryId = 7; // From your list
 
@@ -337,7 +337,7 @@ class UserTransactionsDBService {
       $expenseDateField BETWEEN ? AND ? AND
       $expenseGroupIdField = ?
     ''',
-      whereArgs: [start, end, investmentCategoryId],
+      whereArgs: [startDateString, endDateString, investmentCategoryId],
     );
 
     return result.map((e) => UserTransactionModel.fromJson(e)).toList();

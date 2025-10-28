@@ -13,8 +13,20 @@ class UserDetailsProvider extends ChangeNotifier {
   }
 
   Future<void> updateUserDetails(UserModel userModel) async {
+    final db = UserDBService();
+
+    // Check if a user already exists
+    final existingUser = await db.getById(userModel.id ?? 1);
+
+    if (existingUser == null) {
+      // First time user — insert
+      await db.insert(userModel);
+    } else {
+      // Existing user — update
+      await db.update(userModel);
+    }
+
     _user = userModel;
-    await UserDBService().update(userModel);
     notifyListeners();
   }
 

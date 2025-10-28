@@ -1,10 +1,8 @@
-import 'package:expense_manager/database/db_init_data.dart';
 import 'package:expense_manager/database/user_transactions_database.dart';
 import 'package:expense_manager/models/user_transactions_db_model.dart';
 import 'package:expense_manager/providers/app_data_provider.dart';
 import 'package:expense_manager/providers/expense_category_provider.dart';
 import 'package:expense_manager/providers/user_details_provider.dart';
-import 'package:expense_manager/screens/main_screen/widgets/initial_name_popup.dart';
 import 'package:expense_manager/screens/transactions_screen/widgets/fixed_overview_card.dart';
 import 'package:expense_manager/screens/transactions_screen/widgets/scroll_overview_card.dart';
 import 'package:expense_manager/screens/transactions_screen/widgets/single_transaction_list_tile.dart';
@@ -57,7 +55,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       context,
       listen: false,
     );
-    _loadUserDetails();
     if (_expenseCategoryProvider.categories.isEmpty) {
       loadCategory();
     }
@@ -67,14 +64,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Future<void> loadCategory() async {
     _expenseCategoryProvider.fetchCategories();
     _expenseCategoryProvider.fetchSubCategories(1);
-  }
-
-  Future<void> _loadUserDetails() async {
-    if (_userDetailsProvider.user?.name == null) {
-      await showNameInputDialog(context);
-      await DbInitData.initializeCategoryAndSubCategory();
-      if (mounted) setState(() {});
-    }
   }
 
   Future<void> _loadTransactions() async {
@@ -89,7 +78,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         break;
       case 'Week':
         startDate = now.subtract(Duration(days: now.weekday - 1));
-        endDate = startDate!.add(Duration(days: 7));
+        endDate = startDate!.add(
+          const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
+        );
         break;
       case 'Month':
         startDate = DateTime(now.year, now.month, 1);
@@ -116,7 +107,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         .getTotalBorrowedLentAmounts(
           startDate!,
           endDate!,
-          _userDetailsProvider.user!.name!,
+          _userDetailsProvider.user?.name ?? "Username",
         );
     List<UserTransactionModel> savingsList = await dbService
         .getSavingsTransactions(startDate!, endDate!);
@@ -398,179 +389,183 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return Consumer<AppDataProvider>(
       builder: (context, appDataProvider, child) {
         return Scaffold(
-          body: _userDetailsProvider.user?.name == null
-              ? Center(child: Text("Waiting For Useranme"))
-              : Stack(
-                  children: [
-                    RefreshIndicator(
-                      onRefresh: _loadTransactions,
-                      child: Stack(
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+          body: Consumer<UserDetailsProvider>(
+            builder: (context, userDetailsProvider, child) {
+              return userDetailsProvider.user?.name == null
+                  ? Center(child: Text("Waiting For Useranme"))
+                  : Stack(
+                      children: [
+                        RefreshIndicator(
+                          onRefresh: _loadTransactions,
+                          child: Stack(
                             children: [
-                              // Overview
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12.0,
-                                  vertical: 8,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Text(
-                                      "Overview",
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 18,
-                                        color: Colors.deepPurple[400],
-                                      ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Overview
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12.0,
+                                      vertical: 8,
                                     ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Divider(
-                                        thickness: 1,
-                                        color: Colors.grey[300],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              // Fixed 3-card row
-                              OverviewFixedTopCards(
-                                balance:
-                                    _userDetailsProvider.user?.total ?? 0.0,
-                                totalIncome: totalIncome,
-                                totalSpent: totalAmount,
-                                totalTransactions: totalTransactions,
-                              ),
-                              const SizedBox(height: 10),
-
-                              // Scrollable extra cards
-                              OverviewScrollTile(
-                                balance:
-                                    _userDetailsProvider.user?.total ?? 0.0,
-                                totalSpent: totalAmount,
-                                totalTransactions: totalTransactions,
-                                totalBorrowed: totalBorrowed,
-                                totalLent: totalLent,
-                                totalSavings: totalSavings,
-                                totalInvested: totalInvested,
-                                onTap: _showInsightModal,
-                              ),
-
-                              const SizedBox(height: 15),
-                              Divider(
-                                thickness: 1,
-                                height: 1,
-                                color: Colors.grey[300],
-                              ),
-                              const SizedBox(height: 10),
-                              // Time Period Selector
-                              _buildPeriodSelector(),
-                              if (startDate != null)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 6,
-                                    horizontal: 16,
-                                  ),
-                                  child: Text(
-                                    "From: ${DateFormat.yMMMd().format(startDate!)}  "
-                                    "To: ${DateFormat.yMMMd().format(endDate!)}",
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey[700],
-                                    ),
-                                  ),
-                                ),
-
-                              const SizedBox(height: 10),
-                              // Loading Spinner
-                              if (isLoading)
-                                Center(child: CircularProgressIndicator())
-                              else
-                                // List of Transactions
-                                filteredTransactions.isEmpty
-                                    ? Expanded(
-                                        child: Center(
-                                          child: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Icon(
-                                                Icons.info_outline,
-                                                size: 50,
-                                                color: Colors.grey,
-                                              ),
-                                              SizedBox(height: 10),
-                                              Text(
-                                                "No transactions found for the $selectedPeriod",
-                                                style: TextStyle(
-                                                  fontSize: 16,
-                                                  color: Colors.grey,
-                                                ),
-                                              ),
-                                              SizedBox(height: 5),
-                                              Text(
-                                                "Start by adding some expenses or income.",
-                                                style: TextStyle(
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                            ],
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          "Overview",
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 18,
+                                            color: Colors.deepPurple[400],
                                           ),
                                         ),
-                                      )
-                                    : Expanded(
-                                        child: ListView.builder(
-                                          itemCount:
-                                              filteredTransactions.length,
-                                          physics:
-                                              AlwaysScrollableScrollPhysics(),
-                                          itemBuilder: (context, index) {
-                                            return TransactionListTile(
-                                              transaction:
-                                                  filteredTransactions[index],
-                                              userName: _userDetailsProvider
-                                                  .user!
-                                                  .name!,
-                                              onRefresh: _loadTransactions,
-                                              onEditClicked: () {
-                                                selectedIndex = index;
-                                                openAddExpensePopup();
-                                              },
-                                              groupName:
-                                                  _expenseCategoryProvider
-                                                      .getCategoryNameById(
-                                                        filteredTransactions[index]
-                                                            .expenseGroupId,
-                                                      ) ??
-                                                  "NA",
-                                            );
-                                          },
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Divider(
+                                            thickness: 1,
+                                            color: Colors.grey[300],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  // Fixed 3-card row
+                                  OverviewFixedTopCards(
+                                    balance:
+                                        _userDetailsProvider.user?.total ?? 0.0,
+                                    totalIncome: totalIncome,
+                                    totalSpent: totalAmount,
+                                    totalTransactions: totalTransactions,
+                                  ),
+                                  const SizedBox(height: 10),
+
+                                  // Scrollable extra cards
+                                  OverviewScrollTile(
+                                    balance:
+                                        _userDetailsProvider.user?.total ?? 0.0,
+                                    totalSpent: totalAmount,
+                                    totalTransactions: totalTransactions,
+                                    totalBorrowed: totalBorrowed,
+                                    totalLent: totalLent,
+                                    totalSavings: totalSavings,
+                                    totalInvested: totalInvested,
+                                    onTap: _showInsightModal,
+                                  ),
+
+                                  const SizedBox(height: 15),
+                                  Divider(
+                                    thickness: 1,
+                                    height: 1,
+                                    color: Colors.grey[300],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  // Time Period Selector
+                                  _buildPeriodSelector(),
+                                  if (startDate != null)
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 6,
+                                        horizontal: 16,
+                                      ),
+                                      child: Text(
+                                        "From: ${DateFormat.yMMMd().format(startDate!)}  "
+                                        "To: ${DateFormat.yMMMd().format(endDate!)}",
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey[700],
                                         ),
                                       ),
+                                    ),
+
+                                  const SizedBox(height: 10),
+                                  // Loading Spinner
+                                  if (isLoading)
+                                    Center(child: CircularProgressIndicator())
+                                  else
+                                    // List of Transactions
+                                    filteredTransactions.isEmpty
+                                        ? Expanded(
+                                            child: Center(
+                                              child: Column(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  Icon(
+                                                    Icons.info_outline,
+                                                    size: 50,
+                                                    color: Colors.grey,
+                                                  ),
+                                                  SizedBox(height: 10),
+                                                  Text(
+                                                    "No transactions found for the $selectedPeriod",
+                                                    style: TextStyle(
+                                                      fontSize: 16,
+                                                      color: Colors.grey,
+                                                    ),
+                                                  ),
+                                                  SizedBox(height: 5),
+                                                  Text(
+                                                    "Start by adding some expenses or income.",
+                                                    style: TextStyle(
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          )
+                                        : Expanded(
+                                            child: ListView.builder(
+                                              itemCount:
+                                                  filteredTransactions.length,
+                                              physics:
+                                                  AlwaysScrollableScrollPhysics(),
+                                              itemBuilder: (context, index) {
+                                                return TransactionListTile(
+                                                  transaction:
+                                                      filteredTransactions[index],
+                                                  userName: _userDetailsProvider
+                                                      .user!
+                                                      .name!,
+                                                  onRefresh: _loadTransactions,
+                                                  onEditClicked: () {
+                                                    selectedIndex = index;
+                                                    openAddExpensePopup();
+                                                  },
+                                                  groupName:
+                                                      _expenseCategoryProvider
+                                                          .getCategoryNameById(
+                                                            filteredTransactions[index]
+                                                                .expenseGroupId,
+                                                          ) ??
+                                                      "NA",
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                ],
+                              ),
+                              Visibility(
+                                visible: isExpensePopupOpen,
+                                child: ExpenseEntryPopup(
+                                  userName: _userDetailsProvider.user!.name!,
+                                  callBack: (val) {
+                                    if (!val) return;
+                                    _loadTransactions();
+                                    setState(() => isExpensePopupOpen = false);
+                                  },
+                                  transactionToEdit: selectedIndex == null
+                                      ? null
+                                      : filteredTransactions[selectedIndex!],
+                                ),
+                              ),
                             ],
                           ),
-                          Visibility(
-                            visible: isExpensePopupOpen,
-                            child: ExpenseEntryPopup(
-                              userName: _userDetailsProvider.user!.name!,
-                              callBack: (val) {
-                                if (!val) return;
-                                _loadTransactions();
-                                setState(() => isExpensePopupOpen = false);
-                              },
-                              transactionToEdit: selectedIndex == null
-                                  ? null
-                                  : filteredTransactions[selectedIndex!],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                        ),
+                      ],
+                    );
+            },
+          ),
           floatingActionButton: FloatingActionButton(
             onPressed: openAddExpensePopup,
             tooltip: 'Add Expense',

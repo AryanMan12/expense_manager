@@ -8,6 +8,7 @@ class CustomDropdownBox<T> extends StatelessWidget {
   final TextStyle? textStyle;
   final bool showBorder;
   final TextAlign? textAlign;
+  final bool? showFloatingHint;
 
   const CustomDropdownBox({
     super.key,
@@ -18,6 +19,7 @@ class CustomDropdownBox<T> extends StatelessWidget {
     this.textStyle,
     this.showBorder = true,
     this.textAlign,
+    this.showFloatingHint,
   });
 
   @override
@@ -46,7 +48,9 @@ class CustomDropdownBox<T> extends StatelessWidget {
         onChanged: onChanged,
         decoration: InputDecoration(
           labelText: hintText,
-          floatingLabelBehavior: FloatingLabelBehavior.never,
+          floatingLabelBehavior: showFloatingHint == true
+              ? FloatingLabelBehavior.auto
+              : FloatingLabelBehavior.never,
           border: border,
           enabledBorder: border,
           focusedBorder: border,
