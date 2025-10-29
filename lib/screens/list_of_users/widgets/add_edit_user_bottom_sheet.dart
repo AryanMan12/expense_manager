@@ -64,7 +64,9 @@ class _AddEditUserBottomSheetState extends State<AddEditUserBottomSheet> {
     }
 
     widget.onSaved();
-    Navigator.pop(context);
+    if (mounted) {
+      Navigator.pop(context);
+    }
   }
 
   @override

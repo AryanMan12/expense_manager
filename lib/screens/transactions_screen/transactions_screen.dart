@@ -537,8 +537,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                                           .getCategoryNameById(
                                                             filteredTransactions[index]
                                                                 .expenseGroupId,
-                                                          ) ??
-                                                      "NA",
+                                                          ),
                                                 );
                                               },
                                             ),

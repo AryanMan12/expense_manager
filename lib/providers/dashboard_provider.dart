@@ -3,28 +3,39 @@ import 'package:expense_manager/models/expense_sub_category_db_model.dart';
 import 'package:expense_manager/providers/expense_category_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:expense_manager/models/user_transactions_db_model.dart';
+import 'package:provider/provider.dart';
 
 class DashboardDataProvider extends ChangeNotifier {
   final UserTransactionsDBService _dbService = UserTransactionsDBService();
-  ExpenseCategoryProvider categoryProvider = ExpenseCategoryProvider();
+  late ExpenseCategoryProvider categoryProvider;
 
   bool isLoading = false;
   List<UserTransactionModel> transactions = [];
 
   Map<String, double> topCategories = {};
   Map<String, double> topSubCategories = {};
-  Map<String, double> payerBreakdown = {};
   Map<String, Map<String, double>> payerReceiverData = {};
   Map<DateTime, double> dailyTotals = {};
   double totalBorrowed = 0.0;
   double totalLent = 0.0;
 
   Future<void> loadDashboardData({
+    required BuildContext context,
     required DateTime startDate,
     required DateTime endDate,
     String currentUserName = "Username",
   }) async {
     isLoading = true;
+    categoryProvider = Provider.of<ExpenseCategoryProvider>(
+      context,
+      listen: false,
+    );
+    topCategories.clear();
+    topSubCategories.clear();
+    payerReceiverData.clear();
+    dailyTotals.clear();
+    totalBorrowed = 0;
+    totalLent = 0;
     notifyListeners();
 
     final txs = await _dbService.getTransactionsInRange(startDate, endDate);
@@ -33,7 +44,6 @@ class DashboardDataProvider extends ChangeNotifier {
     await Future.wait([
       _computeCategoryTotals(txs),
       _computeSubCategoryTotals(txs),
-      _computePayerBreakdown(txs),
       _computePayerReceiverData(txs),
       _computeDailyTrends(txs),
       _computeBorrowedLentTotals(startDate, endDate, currentUserName),
@@ -61,8 +71,7 @@ class DashboardDataProvider extends ChangeNotifier {
   Future<void> _computeCategoryTotals(List<UserTransactionModel> txs) async {
     final Map<String, double> categoryTotals = {};
     for (var tx in txs) {
-      final key =
-          categoryProvider.getCategoryNameById(tx.expenseGroupId) ?? "Unknown";
+      final key = categoryProvider.getCategoryNameById(tx.expenseGroupId);
       categoryTotals[key] = (categoryTotals[key] ?? 0) + (tx.amount ?? 0);
     }
 
@@ -89,18 +98,6 @@ class DashboardDataProvider extends ChangeNotifier {
     topSubCategories = Map.fromEntries(
       subCategoryTotals.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value)),
-    );
-  }
-
-  Future<void> _computePayerBreakdown(List<UserTransactionModel> txs) async {
-    final Map<String, double> payerTotals = {};
-    for (var tx in txs) {
-      final payer = tx.payerName ?? "Unknown";
-      payerTotals[payer] = (payerTotals[payer] ?? 0) + (tx.amount ?? 0);
-    }
-
-    payerBreakdown = Map.fromEntries(
-      payerTotals.entries.toList()..sort((a, b) => b.value.compareTo(a.value)),
     );
   }
 

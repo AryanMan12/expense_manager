@@ -88,11 +88,12 @@ class ExpenseCategoryProvider extends ChangeNotifier {
   }
 
   /// Get category name from ID
-  String? getCategoryNameById(int? id) {
+  String getCategoryNameById(int? id) {
+    if (id == null) return "Unknown";
     try {
-      return _categories.firstWhere((c) => c.id == id).name;
+      return _categories.firstWhere((c) => c.id == id).name ?? "Unknown";
     } catch (_) {
-      return null;
+      return "Unknown";
     }
   }
 

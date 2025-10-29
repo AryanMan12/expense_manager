@@ -23,10 +23,10 @@ class MonthlyTransactionCalendarState
   Color _getColor(double amount, BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     if (amount == 0) return Colors.transparent;
-    if (amount < 100) return colorScheme.primary.withOpacity(0.25);
-    if (amount < 500) return colorScheme.primary.withOpacity(0.5);
-    if (amount < 1000) return colorScheme.primary.withOpacity(0.7);
-    return colorScheme.primary.withOpacity(0.9);
+    if (amount < 100) return colorScheme.primary.withValues(alpha: 0.25);
+    if (amount < 500) return colorScheme.primary.withValues(alpha: 0.5);
+    if (amount < 1000) return colorScheme.primary.withValues(alpha: 0.7);
+    return colorScheme.primary.withValues(alpha: 0.9);
   }
 
   @override
@@ -92,9 +92,9 @@ class MonthlyTransactionCalendarState
           alignment: WrapAlignment.center,
           spacing: 8,
           children: [
-            _colorLegend("Low", colorScheme.primary.withOpacity(0.25)),
-            _colorLegend("Medium", colorScheme.primary.withOpacity(0.5)),
-            _colorLegend("High", colorScheme.primary.withOpacity(0.9)),
+            _colorLegend("Low", colorScheme.primary.withValues(alpha: 0.25)),
+            _colorLegend("Medium", colorScheme.primary.withValues(alpha: 0.5)),
+            _colorLegend("High", colorScheme.primary.withValues(alpha: 0.9)),
           ],
         ),
       ],

@@ -7,6 +7,7 @@ import 'package:expense_manager/screens/dashboard_screen1/widgets/monthly_transa
 import 'package:expense_manager/screens/dashboard_screen1/widgets/payer_receiver_card.dart';
 import 'package:expense_manager/screens/dashboard_screen1/widgets/spending_trend_chart.dart';
 import 'package:expense_manager/screens/dashboard_screen1/widgets/top_subcategories_list.dart';
+import 'package:expense_manager/utils/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -27,32 +28,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     provider = DashboardDataProvider();
+
     final now = DateTime.now();
     selectedRange = DateTimeRange(
       start: now.subtract(const Duration(days: 30)),
-      end: now,
-    );
-    _categoryProvider = Provider.of<ExpenseCategoryProvider>(
-      context,
-      listen: false,
-    );
-    _userDetailsProvider = Provider.of<UserDetailsProvider>(
-      context,
-      listen: false,
+      end: now.add(Duration(days: 1)),
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _categoryProvider = Provider.of<ExpenseCategoryProvider>(
+        context,
+        listen: false,
+      );
+      _userDetailsProvider = Provider.of<UserDetailsProvider>(
+        context,
+        listen: false,
+      );
+
       await _categoryProvider.fetchCategories();
-      for (var cat in _categoryProvider.categories) {
+
+      for (final cat in _categoryProvider.categories) {
         await _categoryProvider.fetchSubCategories(cat.id!);
       }
 
-      await _loadDashboardData();
+      if (_categoryProvider.categories.isNotEmpty && mounted) {
+        await provider.loadDashboardData(
+          context: context,
+          startDate: selectedRange!.start,
+          endDate: selectedRange!.end,
+          currentUserName: _userDetailsProvider.user?.name ?? "Username",
+        );
+      } else {
+        debugPrint("No categories found when loading dashboard");
+      }
+
+      setState(() {});
     });
   }
 
   Future<void> _loadDashboardData() async {
     await provider.loadDashboardData(
+      context: context,
       startDate: selectedRange!.start,
       endDate: selectedRange!.end,
       currentUserName: _userDetailsProvider.user?.name ?? "Username",
@@ -63,7 +79,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
+      lastDate: DateTime.now().add(Duration(days: 1)),
       initialDateRange: selectedRange,
     );
     if (picked != null) {
@@ -75,7 +91,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     return ChangeNotifierProvider.value(
       value: provider,
       child: Scaffold(
@@ -125,14 +140,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             _buildHeader(theme),
                             const SizedBox(height: 12),
-                            _animatedSection(_buildTrendChart()),
-                            _animatedSection(_buildCategoryPieChart()),
-                            _animatedSection(_buildTopSubcategories()),
-                            _animatedSection(_buildPayerBreakdownCard()),
-                            _animatedSection(_buildPayerReceiverSection()),
-                            _animatedSection(_buildBorrowedLentSummary()),
-                            _animatedSection(_buildBorrowedLentChart()),
-                            _animatedSection(_buildHeatMap()),
+                            _animatedSection(
+                              _buildTrendChart(),
+                              key: const ValueKey('trend_chart'),
+                            ),
+                            _animatedSection(
+                              _buildCategoryPieChart(),
+                              key: const ValueKey('category_pie_chart'),
+                            ),
+                            _animatedSection(
+                              _buildTopSubcategories(),
+                              key: const ValueKey('subcategory_pie_chart'),
+                            ),
+                            _animatedSection(
+                              _buildPayerReceiverSection(),
+                              key: const ValueKey('payer_receiver_chart'),
+                            ),
+                            _animatedSection(
+                              _buildBorrowedLentOverview(),
+                              key: const ValueKey('borrowed_lent_sum_chart'),
+                            ),
+                            _animatedSection(
+                              _buildHeatMap(),
+                              key: const ValueKey('heat_map_chart'),
+                            ),
                             const SizedBox(height: 16),
                           ],
                         ),
@@ -176,8 +207,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _animatedSection(Widget child) {
+  Widget _animatedSection(Widget child, {Key? key}) {
     return AnimatedSwitcher(
+      key: key,
       duration: const Duration(milliseconds: 300),
       switchInCurve: Curves.easeIn,
       child: child,
@@ -214,24 +246,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     child: DashboardCard(
       title: "Top Spending Categories",
       icon: Icons.pie_chart_rounded,
-      child: Column(
-        children: [
-          GestureDetector(
-            onTap: () => _showDetailsDialog(
-              "Top Spending Categories",
-              provider.topCategories,
-            ),
-            child: CategoryPieChart(data: provider.topCategories),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            children: provider.topCategories.entries
-                .map((e) => _legendItem(e.key, Theme.of(context).primaryColor))
-                .toList(),
-          ),
-        ],
+      child: GestureDetector(
+        onTap: () => _showDetailsDialog(
+          "Top Spending Categories",
+          provider.topCategories,
+        ),
+        child: Column(
+          children: [
+            CategoryPieChart(data: provider.topCategories),
+            const SizedBox(height: 12),
+            _buildChartLegend(provider.topCategories),
+          ],
+        ),
       ),
     ),
   );
@@ -252,54 +278,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: GestureDetector(
         onTap: () =>
             _showDetailsDialog("Top Subcategories", provider.topSubCategories),
-        child: Column(
-          children: [
-            TopSubcategoriesList(data: provider.topSubCategories),
-            const SizedBox(height: 12),
-            _buildChartLegend(provider.topSubCategories),
-          ],
-        ),
-      ),
-    ),
-  );
-
-  Widget _buildPayerBreakdownCard() => TweenAnimationBuilder(
-    duration: const Duration(milliseconds: 350),
-    tween: Tween<double>(begin: 0, end: 1),
-    builder: (context, value, child) => Opacity(
-      opacity: value,
-      child: Transform.translate(
-        offset: Offset(0, 20 * (1 - value)),
-        child: child,
-      ),
-    ),
-    child: DashboardCard(
-      title: "Top Payers",
-      icon: Icons.people_rounded,
-      child: GestureDetector(
-        onTap: () => _showDetailsDialog("Top Payers", provider.payerBreakdown),
-        child: Column(
-          children: [
-            Column(
-              children: provider.payerBreakdown.entries
-                  .take(5) // show top 5 on dashboard
-                  .map(
-                    (e) => ListTile(
-                      dense: true,
-                      title: Text(e.key),
-                      trailing: Text("₹${e.value.toStringAsFixed(2)}"),
-                    ),
-                  )
-                  .toList(),
-            ),
-            const SizedBox(height: 8),
-            if (provider.payerBreakdown.length > 5)
-              Text(
-                "+${provider.payerBreakdown.length - 5} more",
-                style: TextStyle(color: Theme.of(context).colorScheme.primary),
-              ),
-          ],
-        ),
+        child: TopSubcategoriesList(data: provider.topSubCategories),
       ),
     ),
   );
@@ -338,38 +317,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ),
   );
 
-  Widget _buildBorrowedLentChart() {
-    final data = {
-      "Borrowed": provider.totalBorrowed,
-      "Lent": provider.totalLent,
-    };
-    return TweenAnimationBuilder(
-      duration: const Duration(milliseconds: 350),
-      tween: Tween<double>(begin: 0, end: 1),
-      builder: (context, value, child) => Opacity(
-        opacity: value,
-        child: Transform.translate(
-          offset: Offset(0, 20 * (1 - value)),
-          child: child,
-        ),
-      ),
-      child: DashboardCard(
-        title: "Borrowed vs Lent",
-        icon: Icons.balance_rounded,
-        child: GestureDetector(
-          onTap: () => _showDetailsDialog("Borrowed vs Lent", data),
-          child: Column(
-            children: [
-              CategoryPieChart(data: data),
-              const SizedBox(height: 12),
-              _buildChartLegend(data),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildHeatMap() {
     return TweenAnimationBuilder(
       duration: const Duration(milliseconds: 350),
@@ -389,9 +336,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildBorrowedLentSummary() {
+  Widget _buildBorrowedLentOverview() {
     final net = provider.totalLent - provider.totalBorrowed;
     final netColor = net >= 0 ? Colors.green : Colors.red;
+    final data = {
+      "Borrowed": provider.totalBorrowed,
+      "Lent": provider.totalLent,
+    };
 
     return TweenAnimationBuilder(
       duration: const Duration(milliseconds: 350),
@@ -404,24 +355,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
       child: DashboardCard(
-        title: "Borrowed / Lent Summary",
+        title: "Borrowed vs Lent Overview",
         icon: Icons.account_balance_wallet_rounded,
-        child: GestureDetector(
-          onTap: () => _showDetailsDialog("Borrowed / Lent Summary", {
-            "Borrowed": provider.totalBorrowed,
-            "Lent": provider.totalLent,
-            "Net Balance": net,
-          }),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _summaryRow("Total Borrowed", provider.totalBorrowed, Colors.red),
-              const SizedBox(height: 6),
-              _summaryRow("Total Lent", provider.totalLent, Colors.green),
-              const Divider(height: 20),
-              _summaryRow("Net Balance", net, netColor, isBold: true),
-            ],
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Chart
+            GestureDetector(
+              onTap: () => _showDetailsDialog("Borrowed vs Lent", data),
+              child: Column(
+                children: [
+                  CategoryPieChart(data: data),
+                  const SizedBox(height: 12),
+                  _buildChartLegend(data),
+                ],
+              ),
+            ),
+            const Divider(height: 24),
+            // Summary
+            _summaryRow("Total Borrowed", provider.totalBorrowed, Colors.red),
+            const SizedBox(height: 6),
+            _summaryRow("Total Lent", provider.totalLent, Colors.green),
+            const SizedBox(height: 6),
+            _summaryRow("Net Balance", net, netColor, isBold: true),
+          ],
         ),
       ),
     );
@@ -455,15 +412,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildChartLegend(Map<String, double> data) {
-    final colors = [
-      Colors.blue,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.red,
-      Colors.teal,
-    ];
-
     final entries = data.entries.take(6).toList();
     return Wrap(
       alignment: WrapAlignment.start,
@@ -471,7 +419,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       runSpacing: 8,
       children: [
         for (int i = 0; i < entries.length; i++)
-          _legendItem(entries[i].key, colors[i % colors.length]),
+          _legendItem(entries[i].key, chartColors[i % chartColors.length]),
       ],
     );
   }
@@ -516,7 +464,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: ListView.separated(
                 shrinkWrap: true,
                 itemCount: data.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
+                separatorBuilder: (_, _) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final entry = data.entries.elementAt(index);
                   return ListTile(
