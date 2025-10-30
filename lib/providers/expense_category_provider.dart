@@ -118,6 +118,17 @@ class ExpenseCategoryProvider extends ChangeNotifier {
     }
   }
 
+  ExpenseSubCategoryModel? getSubCategoryByName(String name) {
+    for (var cat in categories) {
+      final match = subCategoriesForCategory(cat.id!).firstWhere(
+        (sub) => sub.name == name,
+        orElse: () => ExpenseSubCategoryModel(id: null, name: null),
+      );
+      if (match.id != null) return match;
+    }
+    return null;
+  }
+
   /// Get list of category names for dropdown/search
   List<String> get categoryNames =>
       _categories.map((e) => e.name ?? '').toList();
