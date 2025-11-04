@@ -7,9 +7,7 @@ import 'package:expense_manager/models/user_transactions_db_model.dart';
 import 'package:expense_manager/models/users_db_model.dart';
 import 'package:expense_manager/providers/expense_category_provider.dart';
 import 'package:expense_manager/providers/user_details_provider.dart';
-import 'package:expense_manager/utils/date_utils.dart';
 import 'package:expense_manager/utils/ui_callbacks.dart';
-import 'package:expense_manager/widgets/custom_buttons/cusstom_button.dart';
 import 'package:expense_manager/widgets/custom_checkbox/custom_checkbox.dart';
 import 'package:expense_manager/widgets/custom_dropdown/custom_dropdown.dart';
 import 'package:expense_manager/widgets/custom_inputs/custom_text_area.dart';
@@ -33,10 +31,10 @@ class ExpenseEntryPopup extends StatefulWidget {
   State<ExpenseEntryPopup> createState() => _ExpenseEntryPopupState();
 }
 
-class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
+class _ExpenseEntryPopupState extends State<ExpenseEntryPopup>
+    with TickerProviderStateMixin {
   late TextEditingController amountController;
   late TextEditingController descController;
-  late TextEditingController fromController;
   late TextEditingController toController;
   late TextEditingController expenseDateController;
 
@@ -46,143 +44,219 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
   late String _uiDate;
   late String _uiTime;
 
+  late TabController _tabController;
+
   DateTime? selectedExpenseDateTime;
 
   int? selectedSubCategoryId;
+  int currentTabIndex = 0;
   String? selectedSubCategoryName;
 
   String? selectedExpenseGroup;
 
   bool isBorrowedOrLended = false;
+  bool isExpenseTab = true;
 
   @override
   void initState() {
     super.initState();
-    amountController = TextEditingController();
-    descController = TextEditingController();
-    fromController = TextEditingController();
-    toController = TextEditingController();
-    expenseDateController = TextEditingController();
 
-    _userDetailsProvider = Provider.of<UserDetailsProvider>(
-      context,
-      listen: false,
-    );
+    _initializeControllers();
+    _initializeProviders();
+    _initializeTabController();
+    _handleEditMode();
+    _fetchCategoriesAndSubcategories();
+    _initializeDateTime();
+    _initializeExpenseGroup();
 
-    _categoryProvider = Provider.of<ExpenseCategoryProvider>(
-      context,
-      listen: false,
-    );
+    // Set Borrowed/Lended flag
+    isBorrowedOrLended = widget.transactionToEdit?.isBorrowedOrLended == 1;
+  }
 
-    _categoryProvider.fetchCategories().then((_) async {
-      for (var cat in _categoryProvider.categories) {
-        await _categoryProvider.fetchSubCategories(cat.id!);
-      }
-
-      if (widget.transactionToEdit != null) {
-        final subId = widget.transactionToEdit!.expenseSubGroupId;
-        if (subId != null) {
-          // Find the subcategory by ID
-          for (var cat in _categoryProvider.categories) {
-            final sub = _categoryProvider
-                .subCategoriesForCategory(cat.id!)
-                .firstWhere(
-                  (s) => s.id == subId,
-                  orElse: () => ExpenseSubCategoryModel(),
-                );
-            if (sub.id != null) {
-              setState(() {
-                selectedSubCategoryId = sub.id;
-                selectedSubCategoryName = sub.name;
-              });
-              break;
-            }
-          }
-        }
-      }
-    });
-
-    // Initialize controllers with the transaction data if editing
+  void _initializeControllers() {
     amountController = TextEditingController(
       text: widget.transactionToEdit?.amount.toString() ?? '',
     );
     descController = TextEditingController(
       text: widget.transactionToEdit?.description ?? '',
     );
-    fromController = TextEditingController(
-      text: widget.transactionToEdit?.payerName ?? widget.userName,
+    toController = TextEditingController();
+    expenseDateController = TextEditingController();
+  }
+
+  void _initializeProviders() {
+    _userDetailsProvider = Provider.of<UserDetailsProvider>(
+      context,
+      listen: false,
     );
-    toController = TextEditingController(
-      text: widget.transactionToEdit?.receiverName ?? widget.userName,
+    _categoryProvider = Provider.of<ExpenseCategoryProvider>(
+      context,
+      listen: false,
     );
+  }
+
+  void _initializeTabController() {
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) return;
+      setState(() {
+        currentTabIndex = _tabController.index;
+        _updateNameFieldForTab();
+      });
+    });
+
+    // Default tab = Expense
+    currentTabIndex = 0;
+    _updateNameFieldForTab();
+  }
+
+  void _handleEditMode() {
+    final t = widget.transactionToEdit;
+    if (t == null) return;
+
+    // Determine current tab (Expense / Income)
+    if (t.payerName == widget.userName) {
+      currentTabIndex = 0; // Expense
+      isExpenseTab = true;
+    } else {
+      currentTabIndex = 1; // Income
+      isExpenseTab = false;
+    }
+
+    _tabController.index = currentTabIndex;
+
+    // Update "to" field
+    toController.text = (t.payerName == widget.userName)
+        ? (t.receiverName ?? "")
+        : (t.payerName ?? "");
+  }
+
+  Future<void> _fetchCategoriesAndSubcategories() async {
+    await _categoryProvider.fetchCategories();
+
+    for (var cat in _categoryProvider.categories) {
+      await _categoryProvider.fetchSubCategories(cat.id!);
+    }
+
+    // If editing, find and set selected subcategory
+    final subId = widget.transactionToEdit?.expenseSubGroupId;
+    if (subId == null) return;
+
+    for (var cat in _categoryProvider.categories) {
+      final sub = _categoryProvider
+          .subCategoriesForCategory(cat.id!)
+          .firstWhere(
+            (s) => s.id == subId,
+            orElse: () => ExpenseSubCategoryModel(),
+          );
+
+      if (sub.id != null) {
+        setState(() {
+          selectedSubCategoryId = sub.id;
+          selectedSubCategoryName = sub.name;
+        });
+        break;
+      }
+    }
+  }
+
+  void _initializeDateTime() {
     final now = widget.transactionToEdit?.expenseDate != null
         ? DateTime.parse(widget.transactionToEdit!.expenseDate!)
         : DateTime.now();
 
-    _uiDate = DateFormat('dd MMM yyyy').format(now);
-    _uiTime = DateFormat('hh:mm a').format(now);
-    expenseDateController = TextEditingController(
-      text: "$formattedDate\n$formattedTime",
-    );
+    final formattedDate = DateFormat('dd MMM yyyy').format(now);
+    final formattedTime = DateFormat('hh:mm a').format(now);
+
+    _uiDate = formattedDate;
+    _uiTime = formattedTime;
     selectedExpenseDateTime = now;
 
+    expenseDateController.text = "$formattedDate\n$formattedTime";
+  }
+
+  void _initializeExpenseGroup() {
     selectedExpenseGroup = widget.transactionToEdit?.expenseGroupId != null
         ? _categoryProvider.getCategoryNameById(
-            widget.transactionToEdit?.expenseGroupId,
+            widget.transactionToEdit!.expenseGroupId,
           )
         : "All";
+  }
 
-    isBorrowedOrLended = widget.transactionToEdit?.isBorrowedOrLended == 1;
+  void _updateNameFieldForTab() {
+    toController.text = currentTabIndex == 0 ? "Myself" : "";
   }
 
   @override
   void dispose() {
+    _tabController.dispose();
     super.dispose();
     amountController.dispose();
     descController.dispose();
-    fromController.dispose();
     toController.dispose();
     expenseDateController.dispose();
   }
 
-  // Method to swap the text between controllers
-  void swapText() {
+  void _handleAddNewSubCategory(String newSubName) async {
+    if (newSubName.trim().isEmpty) return;
+
+    final selectedCategoryId = _categoryProvider.getCategoryIdByName(
+      selectedExpenseGroup ?? '',
+    );
+    if (selectedCategoryId == null || selectedExpenseGroup == "All") {
+      showErrorDialog("Please select a category before adding a subcategory.");
+      return;
+    }
+
+    final newSub = ExpenseSubCategoryModel(
+      name: newSubName.trim(),
+      categoryId: selectedCategoryId,
+    );
+
+    await _categoryProvider.addSubCategory(newSub);
+
+    await _categoryProvider.fetchSubCategories(selectedCategoryId);
+
     setState(() {
-      String temp = fromController.text;
-      fromController.text = toController.text;
-      toController.text = temp;
+      selectedSubCategoryName = newSubName;
+      selectedSubCategoryId = _categoryProvider
+          .subCategoriesForCategory(selectedCategoryId)
+          .firstWhere((s) => s.name == newSubName)
+          .id;
     });
   }
 
   // Validate fields
   bool validateFields() {
     amountController.text = amountController.text.trim();
-    fromController.text = fromController.text.trim();
     toController.text = toController.text.trim();
     descController.text = descController.text.trim();
-
     if (amountController.text.isEmpty) {
-      // Amount cannot be empty
       showErrorDialog("Amount is required");
       return false;
     }
 
     if (double.tryParse(amountController.text) == null) {
-      // Amount should be a valid number
       showErrorDialog("Enter a valid amount");
       return false;
     }
 
-    if (fromController.text.isEmpty || toController.text.isEmpty) {
-      // From and To fields are required
-      showErrorDialog("Both From and To are required");
-      return false;
-    }
-
-    if (expenseDateController.text.isEmpty) {
-      // Date is required
-      showErrorDialog("Expense date is required");
-      return false;
+    if (isExpenseTab) {
+      // Expense: "Spent on" can be empty, default to "Myself"
+      if (toController.text.trim().isEmpty) {
+        toController.text = widget.userName;
+      }
+    } else {
+      // Income: must have a valid name, not yourself
+      if (toController.text.trim().isEmpty) {
+        showErrorDialog("Please enter who you earned from");
+        return false;
+      }
+      if (toController.text.trim().toLowerCase() ==
+          widget.userName.trim().toLowerCase()) {
+        showErrorDialog("Name cannot be your own for Income");
+        return false;
+      }
     }
 
     if (selectedExpenseDateTime == null) {
@@ -192,12 +266,6 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
 
     if (selectedSubCategoryId == null) {
       showErrorDialog("Please select a Subcategory");
-      return false;
-    }
-
-    if (selectedExpenseGroup == null || selectedExpenseGroup!.isEmpty) {
-      // Expense group should be selected
-      showErrorDialog("Please select an Expense Group");
       return false;
     }
 
@@ -225,8 +293,10 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
 
   Future<UserModel> ensureUserExists(String name) async {
     final userDB = UserDBService();
-    final existing = await userDB.getByName(name);
-    if (existing != null) return existing;
+    final existingUser = await userDB.getByName(name.trim());
+    if (existingUser != null) return existingUser;
+
+    final nowIso = DateTime.now().toIso8601String();
 
     final newUser = UserModel(
       name: name.trim(),
@@ -238,8 +308,8 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
       moneyBorrowed: 0.0,
       moneyLend: 0.0,
       isActive: true,
-      createdDate: DateTime.now().toIso8601String(),
-      modifiedDate: DateTime.now().toIso8601String(),
+      createdDate: nowIso,
+      modifiedDate: nowIso,
     );
 
     final newId = await userDB.insert(newUser);
@@ -250,89 +320,99 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
   Future<void> saveTransaction() async {
     if (!validateFields()) return;
 
-    final dbService = UserTransactionsDBService();
-    final userDB = UserDBService();
-
     try {
-      // Ensure both "From" and "To" users exist
-      final fromUser = await ensureUserExists(fromController.text.trim());
-      final toUser = await ensureUserExists(toController.text.trim());
+      final dbService = UserTransactionsDBService();
+      final userDB = UserDBService();
 
-      // Prepare transaction
-      final userTransaction = UserTransactionModel(
-        id: widget.transactionToEdit?.id,
-        payerName: fromUser.name,
-        receiverName: toUser.name,
-        amount: double.tryParse(amountController.text),
-        description: descController.text,
-        expenseGroupId: _categoryProvider.getCategoryIdByName(
-          selectedExpenseGroup!,
-        ),
-        expenseSubGroupId: selectedSubCategoryId,
-        eventId: 1,
-        splitTransactionId: null,
-        isBorrowedOrLended: isBorrowedOrLended ? 1 : 2,
-        expenseDate:
-            selectedExpenseDateTime?.toIso8601String() ??
-            DateTime.now().toIso8601String(),
-        createdDate:
-            widget.transactionToEdit?.createdDate ??
-            DateTime.now().toIso8601String(),
-        modifiedDate: DateTime.now().toIso8601String(),
-      );
-
-      // Save transaction (insert or update)
-      if (userTransaction.id != null) {
-        await dbService.update(userTransaction);
-      } else {
-        await dbService.insert(userTransaction);
-      }
-
-      // Update totals
+      final userName = _resolveUserName();
+      final toUser = await ensureUserExists(userName);
       final mainUser = _userDetailsProvider.user!;
-      double amount = double.tryParse(amountController.text.trim()) ?? 0.0;
-      UserModel updatedMain = mainUser;
 
-      // CASE 1️⃣: Main user is paying someone (expense)
-      if (fromUser.id == mainUser.id) {
-        updatedMain = updatedMain.copyWith(
-          total: (updatedMain.total ?? 0) - amount,
-          moneyLend: (updatedMain.moneyLend ?? 0) + amount,
-          modifiedDate: DateTime.now().toIso8601String(),
-        );
+      final transaction = _buildTransaction(toUser);
+      await _saveOrUpdateTransaction(dbService, transaction);
 
-        // Update the other user's side
-        final updatedReceiver = toUser.copyWith(
-          total: (toUser.total ?? 0) + amount,
-          moneyBorrowed: (toUser.moneyBorrowed ?? 0) + amount,
-          modifiedDate: DateTime.now().toIso8601String(),
-        );
-        await userDB.update(updatedReceiver);
-      }
-      // CASE 2️⃣: Main user is receiving money
-      else if (toUser.id == mainUser.id) {
-        updatedMain = updatedMain.copyWith(
-          total: (updatedMain.total ?? 0) + amount,
-          moneyBorrowed: (updatedMain.moneyBorrowed ?? 0) - amount,
-          modifiedDate: DateTime.now().toIso8601String(),
-        );
+      final amount = double.tryParse(amountController.text.trim()) ?? 0.0;
+      await _updateUserTotals(userDB, mainUser, toUser, amount);
 
-        // Update the payer’s side
-        final updatedPayer = fromUser.copyWith(
-          total: (fromUser.total ?? 0) - amount,
-          moneyLend: (fromUser.moneyLend ?? 0) - amount,
-          modifiedDate: DateTime.now().toIso8601String(),
-        );
-        await userDB.update(updatedPayer);
-      }
-
-      // Save main user updates both in DB + provider
-      await _userDetailsProvider.updateUserDetails(updatedMain);
-
+      await _userDetailsProvider.updateUserDetails(mainUser);
       widget.callBack(true);
-    } catch (e) {
-      log(e.toString());
+    } catch (e, s) {
+      log('saveTransaction error: $e\n$s');
       showErrorDialog("Failed to save transaction: $e");
+    }
+  }
+
+  String _resolveUserName() {
+    final name = toController.text.trim();
+    return name.toLowerCase() == "myself" ? widget.userName : name;
+  }
+
+  UserTransactionModel _buildTransaction(UserModel toUser) {
+    final nowIso = DateTime.now().toIso8601String();
+    final edit = widget.transactionToEdit;
+
+    return UserTransactionModel(
+      id: edit?.id,
+      payerName: currentTabIndex == 0 ? widget.userName : toUser.name,
+      receiverName: currentTabIndex == 1 ? widget.userName : toUser.name,
+      amount: double.tryParse(amountController.text),
+      description: descController.text,
+      expenseGroupId: _categoryProvider.getCategoryIdByName(
+        selectedExpenseGroup ?? "All",
+      ),
+      expenseSubGroupId: selectedSubCategoryId,
+      eventId: 1,
+      splitTransactionId: null,
+      isBorrowedOrLended: isBorrowedOrLended ? 1 : 2,
+      expenseDate: selectedExpenseDateTime?.toIso8601String() ?? nowIso,
+      createdDate: edit?.createdDate ?? nowIso,
+      modifiedDate: nowIso,
+    );
+  }
+
+  Future<void> _saveOrUpdateTransaction(
+    UserTransactionsDBService dbService,
+    UserTransactionModel txn,
+  ) async {
+    if (txn.id != null) {
+      await dbService.update(txn);
+    } else {
+      await dbService.insert(txn);
+    }
+  }
+
+  Future<void> _updateUserTotals(
+    UserDBService userDB,
+    UserModel mainUser,
+    UserModel targetUser,
+    double amount,
+  ) async {
+    final nowIso = DateTime.now().toIso8601String();
+
+    if (isExpenseTab) {
+      // Expense: money spent
+      await userDB.update(
+        targetUser.copyWith(
+          total: (targetUser.total ?? 0) + amount,
+          modifiedDate: nowIso,
+        ),
+      );
+      mainUser = mainUser.copyWith(
+        total: (mainUser.total ?? 0) - amount,
+        modifiedDate: nowIso,
+      );
+    } else {
+      // Income: money earned
+      await userDB.update(
+        targetUser.copyWith(
+          total: (targetUser.total ?? 0) - amount,
+          modifiedDate: nowIso,
+        ),
+      );
+      mainUser = mainUser.copyWith(
+        total: (mainUser.total ?? 0) + amount,
+        modifiedDate: nowIso,
+      );
     }
   }
 
@@ -406,372 +486,450 @@ class _ExpenseEntryPopupState extends State<ExpenseEntryPopup> {
     );
   }
 
-  void _handleAddNewSubCategory(String newSubName) async {
-    if (newSubName.trim().isEmpty) return;
-
-    final selectedCategoryId = _categoryProvider.getCategoryIdByName(
-      selectedExpenseGroup ?? '',
-    );
-    if (selectedCategoryId == null || selectedExpenseGroup == "All") {
-      showErrorDialog("Please select a category before adding a subcategory.");
-      return;
-    }
-
-    final newSub = ExpenseSubCategoryModel(
-      name: newSubName.trim(),
-      categoryId: selectedCategoryId,
-    );
-
-    await _categoryProvider.addSubCategory(newSub);
-
-    await _categoryProvider.fetchSubCategories(selectedCategoryId);
-
-    setState(() {
-      selectedSubCategoryName = newSubName;
-      selectedSubCategoryId = _categoryProvider
-          .subCategoriesForCategory(selectedCategoryId)
-          .firstWhere((s) => s.name == newSubName)
-          .id;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.sizeOf(context);
+    final size = MediaQuery.sizeOf(context);
+    final isSmall = size.width < 500;
+
     return Center(
-      child: Container(
-        height: screenSize.height * 0.6,
-        width: screenSize.width * 0.95,
-        padding: const EdgeInsets.all(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        height: size.height * (isSmall ? 0.8 : 0.6),
+        width: size.width * 0.9,
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          // background gradient or soft color
           gradient: LinearGradient(
-            colors: [Colors.white, Colors.purple.shade50],
-            end: Alignment.topLeft,
-            begin: Alignment.bottomRight,
+            colors: [
+              Colors.white,
+              Colors.deepPurple.shade50,
+              Colors.indigo.shade50,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: .1),
-              blurRadius: 12,
-              offset: Offset(0, 6),
+              color: Colors.deepPurple.shade100.withValues(alpha: .3),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
         child: Column(
           children: [
+            _buildGradientTabs(),
+            const SizedBox(height: 16),
+
+            // Split view instead of long list
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(12),
-                children: [
-                  // 🕒 Date
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          child: Text(
-                            widget.transactionToEdit == null
-                                ? "Add Transaction"
-                                : "Edit Transaction",
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.deepPurple,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      _buildDatePicker(),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // 🧑 From / To
-                  Row(
-                    children: [
-                      Expanded(
-                        child: CustomTextBox(
-                          hintText: "From",
-                          helperText: "From",
-                          controller: fromController,
-                          onChange: (callback) => setState(() {}),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: swapText,
-                        icon: Icon(Icons.swap_horiz),
-                        padding: const EdgeInsets.only(bottom: 12),
-                      ),
-                      Expanded(
-                        child: CustomTextBox(
-                          hintText: "To",
-                          helperText: "To",
-                          controller: toController,
-                          onChange: (callback) => setState(() {}),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // ☑️ Borrowed / Lended
-                  if (fromController.text.trim() != toController.text.trim())
-                    CustomCheckboxField(
-                      label: fromController.text.trim() == widget.userName
-                          ? "Lend"
-                          : "Borrowed",
-                      value: isBorrowedOrLended,
-                      onChanged: (val) => setState(
-                        () => isBorrowedOrLended = !isBorrowedOrLended,
-                      ),
-                    ),
-
-                  // 💰 Amount (centered, large)
-                  Center(
-                    child: SizedBox(
-                      width: 200,
-                      child: CustomTextBox(
-                        hintText: "₹0.00",
-                        controller: amountController,
-                        inputType: TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        textStyle: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        helperText: "Amount",
-                        textAlign: TextAlign.center,
-                        autoFocus: true,
-                        hideBorder: true,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  CustomDropdownBox(
-                    hintText: "Category",
-                    textStyle: TextStyle(overflow: TextOverflow.ellipsis),
-                    items: ["All", ..._categoryProvider.categoryNames],
-                    selectedValue: selectedExpenseGroup,
-                    showFloatingHint: true,
-                    onChanged: (val) {
-                      setState(() {
-                        selectedExpenseGroup = val;
-                        selectedSubCategoryName = null;
-                        selectedSubCategoryId = null;
-                      });
-                    },
-                  ),
-
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    child: DropdownSearch<String>(
-                      dropdownBuilder: (context, selectedItem) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Text(
-                            selectedItem ?? "Select Subcategory",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              color: selectedItem == null
-                                  ? Colors.grey
-                                  : Colors.black,
-                            ),
-                          ),
-                        );
-                      },
-                      popupProps: PopupProps.menu(
-                        showSearchBox: true,
-                        searchFieldProps: TextFieldProps(
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                            ),
-                          ),
-                        ),
-                        emptyBuilder: (context, searchEntry) {
-                          if (searchEntry.isNotEmpty) {
-                            return ListTile(
-                              title: Text(
-                                "Add '$searchEntry' as new subcategory",
-                              ),
-                              onTap: () async {
-                                final trimmedName = searchEntry
-                                    .trim()
-                                    .toLowerCase();
-
-                                final allSubcategories = _categoryProvider
-                                    .categories
-                                    .expand(
-                                      (cat) => _categoryProvider
-                                          .subCategoriesForCategory(cat.id!),
-                                    )
-                                    .toList();
-
-                                final exists = allSubcategories.any(
-                                  (sub) =>
-                                      sub.name?.trim().toLowerCase() ==
-                                      trimmedName,
-                                );
-
-                                if (exists) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        "Subcategory '$searchEntry' already exists.",
-                                      ),
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                Navigator.pop(context);
-                                _handleAddNewSubCategory(searchEntry);
-                              },
-                            );
-                          }
-
-                          return const Center(
-                            child: Text("No matching subcategories"),
-                          );
-                        },
-                      ),
-                      items: (String filter, LoadProps? loadProps) async {
-                        List<ExpenseSubCategoryModel> filteredSubs = [];
-
-                        if (selectedExpenseGroup != null &&
-                            selectedExpenseGroup != "All") {
-                          final selectedCategoryId = _categoryProvider
-                              .getCategoryIdByName(selectedExpenseGroup!);
-                          if (selectedCategoryId != null) {
-                            filteredSubs = _categoryProvider
-                                .subCategoriesForCategory(selectedCategoryId);
-                          }
-                        } else {
-                          // "All" selected → show every subcategory
-                          filteredSubs = _categoryProvider.categories
-                              .expand(
-                                (cat) => _categoryProvider
-                                    .subCategoriesForCategory(cat.id!),
-                              )
-                              .toList();
-                        }
-
-                        final subNames = filteredSubs
-                            .map((s) => s.name!)
-                            .toSet()
-                            .toList();
-
-                        if (filter.isEmpty) return subNames;
-
-                        final lower = filter.toLowerCase();
-                        return subNames
-                            .where((name) => name.toLowerCase().contains(lower))
-                            .toList();
-                      },
-                      selectedItem: selectedSubCategoryName,
-                      onChanged: (subName) {
-                        if (subName == null) return;
-
-                        setState(() {
-                          selectedSubCategoryName = subName;
-                          for (var cat in _categoryProvider.categories) {
-                            final found = _categoryProvider
-                                .subCategoriesForCategory(cat.id!)
-                                .firstWhere(
-                                  (s) => s.name == subName,
-                                  orElse: () => ExpenseSubCategoryModel(),
-                                );
-                            if (found.id != null) {
-                              selectedExpenseGroup = cat.name;
-                              selectedSubCategoryId = found.id;
-                              break;
-                            }
-                          }
-                        });
-                      },
-                      decoratorProps: DropDownDecoratorProps(
-                        decoration: InputDecoration(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 16,
-                          ),
-                          // hintText: "Select Subcategory",
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide(color: Colors.grey),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide(color: Colors.grey),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide(
-                              color: Colors.deepPurpleAccent,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: CustomTextArea(
-                      hintText: "Description (optional)",
-                      controller: descController,
-                      icon: Icons.description,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                children: [
-                  Expanded(child: SizedBox()), // Spacer
-                  const SizedBox(width: 5),
-                  Expanded(
-                    flex: 2,
-                    child: CustomButton(
-                      label: "Cancel",
-                      onPressed: () => widget.callBack(true),
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    flex: 2,
-                    child: CustomButton(
-                      label: "Save",
-                      onPressed: () async => await saveTransaction(),
-                      color: Colors.deepPurpleAccent,
-                    ),
-                  ),
-                ],
-              ),
+              child: isSmall
+                  ? _buildVerticalForm() // mobile layout
+                  : _buildSplitForm(), // desktop/tablet layout
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildGradientTabs() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        gradient: LinearGradient(
+          colors: [Colors.deepPurple.shade100, Colors.purple.shade50],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        labelStyle: const TextStyle(fontWeight: FontWeight.w600),
+        indicator: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.deepPurpleAccent, Colors.purpleAccent],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.deepPurple.withValues(alpha: 0.3),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.deepPurple.shade400,
+        tabs: const [
+          Tab(text: "Expense"),
+          Tab(text: "Income"),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSplitForm() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // LEFT PANEL
+        Expanded(
+          flex: 3,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeaderRow(),
+              const SizedBox(height: 16),
+              _buildAmountField(),
+              const SizedBox(height: 16),
+              _buildCategorySelectors(),
+            ],
+          ),
+        ),
+        const SizedBox(width: 20),
+
+        // RIGHT PANEL
+        Expanded(
+          flex: 3,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildFromToField(),
+              const SizedBox(height: 12),
+              if (toController.text.trim() != "Myself")
+                CustomCheckboxField(
+                  label: currentTabIndex == 0 ? "Lend" : "Borrowed",
+                  value: isBorrowedOrLended,
+                  onChanged: (v) =>
+                      setState(() => isBorrowedOrLended = !isBorrowedOrLended),
+                ),
+              const SizedBox(height: 12),
+              _buildDescriptionField(),
+              const Spacer(),
+              _buildActionButtons(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVerticalForm() {
+    return ListView(
+      physics: const BouncingScrollPhysics(),
+      children: [
+        _buildHeaderRow(),
+        const SizedBox(height: 16),
+        _buildAmountField(),
+        const SizedBox(height: 16),
+        _buildCategorySelectors(),
+        const SizedBox(height: 16),
+        _buildFromToField(),
+        if (toController.text.trim() != "Myself")
+          CustomCheckboxField(
+            label: currentTabIndex == 0 ? "Lend" : "Borrowed",
+            value: isBorrowedOrLended,
+            onChanged: (v) =>
+                setState(() => isBorrowedOrLended = !isBorrowedOrLended),
+          ),
+        const SizedBox(height: 16),
+        _buildDescriptionField(),
+        _buildActionButtons(),
+      ],
+    );
+  }
+
+  //
+  // ─── HEADER ROW (TITLE + DATE PICKER) ───────────────────────────────────────
+  //
+  Widget _buildHeaderRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Text(
+            widget.transactionToEdit == null
+                ? "Add Transaction"
+                : "Edit Transaction",
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: Colors.deepPurple,
+            ),
+          ),
+        ),
+        _buildDatePicker(),
+      ],
+    );
+  }
+
+  //
+  // ─── AMOUNT FIELD (PROMINENT CENTERED) ──────────────────────────────────────
+  //
+  Widget _buildAmountField() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Center(
+        child: SizedBox(
+          width: 220,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.deepPurple.shade50,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: CustomTextBox(
+                hintText: "₹0.00",
+                controller: amountController,
+                inputType: const TextInputType.numberWithOptions(decimal: true),
+                textStyle: const TextStyle(
+                  fontSize: 30,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.deepPurple,
+                ),
+                helperText: "Amount",
+                textAlign: TextAlign.center,
+                autoFocus: true,
+                hideBorder: true,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  //
+  // ─── FROM / TO FIELD ────────────────────────────────────────────────────────
+  //
+  Widget _buildFromToField() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: CustomTextBox(
+        hintText: isExpenseTab ? "Spent on" : "Earned from",
+        helperText: isExpenseTab ? "Spent on" : "Earned from",
+        controller: toController,
+        onChange: (_) => setState(() {}),
+      ),
+    );
+  }
+
+  //
+  // ─── CATEGORY + SUBCATEGORY SELECTORS ───────────────────────────────────────
+  //
+  Widget _buildCategorySelectors() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Column(
+        children: [
+          CustomDropdownBox(
+            hintText: "Category",
+            items: ["All", ..._categoryProvider.categoryNames],
+            selectedValue: selectedExpenseGroup,
+            showFloatingHint: true,
+            onChanged: (val) {
+              setState(() {
+                selectedExpenseGroup = val;
+                selectedSubCategoryName = null;
+                selectedSubCategoryId = null;
+              });
+            },
+          ),
+          const SizedBox(height: 10),
+          _buildSubCategoryDropdown(),
+        ],
+      ),
+    );
+  }
+
+  //
+  // ─── SUBCATEGORY DROPDOWN ──────────────────────────────────────────────────
+  //
+  Widget _buildSubCategoryDropdown() {
+    return DropdownSearch<String>(
+      dropdownBuilder: (context, selectedItem) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Text(
+            selectedItem ?? "Select Subcategory",
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: selectedItem == null ? Colors.grey : Colors.black,
+            ),
+          ),
+        );
+      },
+      popupProps: PopupProps.menu(
+        showSearchBox: true,
+        searchFieldProps: TextFieldProps(
+          decoration: InputDecoration(
+            hintText: "Search subcategory...",
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+          ),
+        ),
+        emptyBuilder: (context, searchEntry) {
+          if (searchEntry.isNotEmpty) {
+            return ListTile(
+              title: Text("Add '$searchEntry' as new subcategory"),
+              onTap: () async {
+                final trimmedName = searchEntry.trim().toLowerCase();
+                final allSubs = _categoryProvider.categories
+                    .expand(
+                      (cat) =>
+                          _categoryProvider.subCategoriesForCategory(cat.id!),
+                    )
+                    .toList();
+
+                final exists = allSubs.any(
+                  (sub) => sub.name?.trim().toLowerCase() == trimmedName,
+                );
+
+                if (exists) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        "Subcategory '$searchEntry' already exists.",
+                      ),
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(context);
+                _handleAddNewSubCategory(searchEntry);
+              },
+            );
+          }
+
+          return const Center(child: Text("No matching subcategories"));
+        },
+      ),
+      items: (String filter, LoadProps? loadProps) async {
+        List<ExpenseSubCategoryModel> filteredSubs = [];
+
+        if (selectedExpenseGroup != null && selectedExpenseGroup != "All") {
+          final categoryId = _categoryProvider.getCategoryIdByName(
+            selectedExpenseGroup!,
+          );
+          if (categoryId != null) {
+            filteredSubs = _categoryProvider.subCategoriesForCategory(
+              categoryId,
+            );
+          }
+        } else {
+          filteredSubs = _categoryProvider.categories
+              .expand(
+                (cat) => _categoryProvider.subCategoriesForCategory(cat.id!),
+              )
+              .toList();
+        }
+
+        final names = filteredSubs.map((s) => s.name!).toSet().toList();
+        if (filter.isEmpty) return names;
+
+        final lower = filter.toLowerCase();
+        return names.where((n) => n.toLowerCase().contains(lower)).toList();
+      },
+      selectedItem: selectedSubCategoryName,
+      onChanged: (subName) {
+        if (subName == null) return;
+        setState(() {
+          selectedSubCategoryName = subName;
+          for (var cat in _categoryProvider.categories) {
+            final found = _categoryProvider
+                .subCategoriesForCategory(cat.id!)
+                .firstWhere(
+                  (s) => s.name == subName,
+                  orElse: () => ExpenseSubCategoryModel(),
+                );
+            if (found.id != null) {
+              selectedExpenseGroup = cat.name;
+              selectedSubCategoryId = found.id;
+              break;
+            }
+          }
+        });
+      },
+      decoratorProps: DropDownDecoratorProps(
+        decoration: InputDecoration(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 16,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: const BorderSide(color: Colors.grey),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: const BorderSide(color: Colors.deepPurpleAccent),
+          ),
+        ),
+      ),
+    );
+  }
+
+  //
+  // ─── DESCRIPTION FIELD ─────────────────────────────────────────────────────
+  //
+  Widget _buildDescriptionField() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: CustomTextArea(
+        hintText: "Description (optional)",
+        controller: descController,
+        icon: Icons.description_outlined,
+      ),
+    );
+  }
+
+  //
+  // ─── ACTION BUTTONS (SAVE / CANCEL) ─────────────────────────────────────────
+  //
+  Widget _buildActionButtons() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () => widget.callBack(true),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                side: BorderSide(color: Colors.grey.shade400),
+              ),
+              child: const Text("Cancel"),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () async => await saveTransaction(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurpleAccent,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 4,
+              ),
+              child: const Text(
+                "Save",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

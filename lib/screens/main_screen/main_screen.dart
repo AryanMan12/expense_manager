@@ -53,9 +53,6 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _loadUserDetails() async {
     await _userDetailsProvider.getUserDetails();
 
-    // Initialize default data
-    await DbInitData.initializeCategoryAndSubCategory();
-
     // Wait until first frame to safely show dialogs
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;

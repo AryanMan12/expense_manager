@@ -2,20 +2,19 @@ import 'package:expense_manager/database/database_config.dart';
 
 // DB Constants
 const String tableName = "user_transactions";
-const String payerNameField =
-    "payer_name"; // Foreign Key to User (or related entity)
-const String receiverNameField =
-    "receiver_name"; // Foreign Key to User (or related entity)
+const String payerNameField = "payer_name";
+const String receiverNameField = "receiver_name";
 const String amountField = "amount";
 const String descriptionField = "description";
 const String expenseGroupIdField =
     "expense_group_id"; // Foreign Key to Expense Group
 const String expenseSubGroupIdField =
-    "expense_sub_group_id"; // Foreign Key to Expense Group
+    "expense_sub_group_id"; // Foreign Key to Expense Sub Group
 const String eventIdField = "event_id"; // Foreign Key to Event
 const String splitTransactionIdField =
     "split_transaction_id"; // ID of related split transaction
-const String isBorrowedOrLendedField = "is_borrowed_or_lended"; // 1 or 2
+const String isBorrowedOrLendedField =
+    "is_borrowed_or_lended"; // 1 = borrowed or lent (depends on payerNameField -> if its me its lent or else it is borrowed) or 2 = normal transaction
 const String expenseDateField = "expense_date";
 
 // List of columns in the user_transactions table
@@ -42,11 +41,11 @@ class UserTransactionModel {
   final String? receiverName;
   final double? amount;
   final String? description;
-  final int? expenseGroupId; // Foreign Key to Expense Group
-  final int? expenseSubGroupId; // Foreign Key to Expense Group
-  final int? eventId; // Foreign Key to Event
-  final int? splitTransactionId; // ID of related split transaction
-  final int? isBorrowedOrLended; // 1: borrowed/lent, 2: regular
+  final int? expenseGroupId;
+  final int? expenseSubGroupId;
+  final int? eventId;
+  final int? splitTransactionId;
+  final int? isBorrowedOrLended;
   final String? expenseDate;
   final String? createdDate;
   final String? modifiedDate;
